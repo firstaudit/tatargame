@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="tt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Сан-Ракета — Тапкырлау</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        
+        #gameContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #speedControl {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 20px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: opacity 0.3s;
+        }
+        
+        #speedControl.hidden {
+            opacity: 0.2;
+        }
+        
+        #speedControl label {
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        #speedControl input[type="range"] {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 4px;
+            border-radius: 2px;
+            background: #444;
+            outline: none;
+        }
+        
+        #speedControl input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #ff8800;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
+        }
+        
+        #speedValue {
+            color: #ffaa00;
+            font-size: 13px;
+            font-weight: bold;
+            min-width: 36px;
+            text-align: center;
+        }
+        
+        @media (max-width: 420px) {
+            #speedControl {
+                bottom: 8px;
+                padding: 6px 12px;
+                gap: 6px;
+                border-radius: 16px;
+            }
+            #speedControl label {
+                font-size: 11px;
+            }
+            #speedControl input[type="range"] {
+                width: 80px;
+            }
+            #speedValue {
+                font-size: 12px;
+                min-width: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="game"></canvas>
+    </div>
+    
+    <div id="speedControl">
+        <label>🚀</label>
+        <input type="range" id="speedSlider" min="50" max="120" value="100" step="5">
+        <span id="speedValue">1.0x</span>
+    </div>
+
+    <script>
+        // ========== САН-РАКЕТА v3 — ИМБА ЧАК-ЧАК ЗА 8 ==========
+        
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('gameContainer');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const speedControl = document.getElementById('speedControl');
+        
+        const DESIGN_WIDTH = 375;
+        const DESIGN_HEIGHT = 667;
+        
+        let scaleX = 1;
+        let scaleY = 1;
+        let gameWidth = DESIGN_WIDTH;
+        let gameHeight = DESIGN_HEIGHT;
+        
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            const w = rect.width;
+            const h = rect.height;
+            
+            const scale = Math.min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT);
+            gameWidth = Math.floor(DESIGN_WIDTH * scale);
+            gameHeight = Math.floor(DESIGN_HEIGHT * scale);
+            
+            canvas.width = gameWidth;
+            canvas.height = gameHeight;
+            canvas.style.width = gameWidth + 'px';
+            canvas.style.height = gameHeight + 'px';
+            canvas.style.left = ((w - gameWidth) / 2) + 'px';
+            canvas.style.top = ((h - gameHeight) / 2) + 'px';
+            
+            scaleX = gameWidth / DESIGN_WIDTH;
+            scaleY = gameHeight / DESIGN_HEIGHT;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+        
+        let gameSpeedMultiplier = 1.0;
+        
+        speedSlider.addEventListener('input', () => {
+            gameSpeedMultiplier = parseInt(speedSlider.value) / 100;
+            speedValue.textContent = gameSpeedMultiplier.toFixed(2) + 'x';
+        });
+        
+        let hideSliderTimeout;
+        function showSliderTemporarily() {
+            speedControl.classList.remove('hidden');
+            clearTimeout(hideSliderTimeout);
+            hideSliderTimeout = setTimeout(() => speedControl.classList.add('hidden'), 3000);
+        }
+        speedControl.addEventListener('touchstart', showSliderTemporarily);
+        speedControl.addEventListener('click', showSliderTemporarily);
+        showSliderTemporarily();
+        
+        // ========== СОСТОЯНИЯ ==========
+        const STATE = { MENU: 'menu', PLAYING: 'playing' };
+        let state = STATE.MENU;
+        
+        // ========== ИГРОВЫЕ ПЕРЕМЕННЫЕ ==========
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let lives = 3;
+        let echpochmaks = 3;
+        let chakchaks = 0;
+        let speed = 1;
+        let frameCount = 0;
+        
+        // ========== РАКЕТА ==========
+        const rocket = {
+            x: 0, y: 0,
+            width: 24, height: 48,
+            flameNormal: 20, flameBoost: 40,
+            currentFlame: 20, targetFlame: 20,
+            shake: 0
+        };
+        
+        // ========== ФОН ==========
+        let stars = [];
+        const STAR_COUNT = 60;
+        
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push({
+                    x: Math.random() * DESIGN_WIDTH,
+                    y: Math.random() * DESIGN_HEIGHT,
+                    size: Math.random() * 2.5 + 0.5,
+                    speed: Math.random() * 1.5 + 0.3,
+                    twinkle: Math.random() * Math.PI * 2,
+                    twinkleSpeed: Math.random() * 0.03 + 0.01
+                });
+            }
+        }
+        
+        let clouds = [];
+        const CLOUD_COUNT = 6;
+        
+        function initClouds() {
+            clouds = [];
+            for (let i = 0; i < CLOUD_COUNT; i++) {
+                clouds.push({
+                    x: Math.random() * DESIGN_WIDTH,
+                    y: DESIGN_HEIGHT - 60 - Math.random() * 40,
+                    width: Math.random() * 50 + 25,
+                    speed: Math.random() * 0.5 + 0.2
+                });
+            }
+        }
+        
+        // ========== АСТЕРОИДЫ ==========
+        let asteroids = [];
+        const ASTEROID_SPAWN_INTERVAL = 90;
+        let asteroidTimer = 0;
+        
+        function generateExample() {
+            const a = Math.floor(Math.random() * 9) + 2;
+            const b = Math.floor(Math.random() * 9) + 2;
+            const correctAnswer = a * b;
+            
+            const wrongAnswers = new Set();
+            wrongAnswers.add(correctAnswer);
+            
+            while (wrongAnswers.size < 4) {
+                let wrong;
+                const r = Math.random();
+                if (r < 0.4) {
+                    wrong = correctAnswer + Math.floor(Math.random() * 10) - 5;
+                } else if (r < 0.7) {
+                    wrong = (a - 1) * b || (a + 1) * b || a * (b + 1) || a * (b - 1);
+                } else {
+                    wrong = Math.floor(Math.random() * 81) + 4;
+                }
+                if (wrong !== correctAnswer && wrong > 0 && wrong < 100) {
+                    wrongAnswers.add(wrong);
+                }
+            }
+            
+            const answers = [...wrongAnswers];
+            for (let i = answers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [answers[i], answers[j]] = [answers[j], answers[i]];
+            }
+            
+            return {
+                a, b,
+                text: `${a} × ${b}`,
+                correct: correctAnswer,
+                answers: answers,
+                isCurrent: false,
+                x: Math.random() * (DESIGN_WIDTH - 100) + 50,
+                y: -50,
+                radius: 28,
+                speed: 1.0 + Math.random() * 0.4,
+                active: true,
+                hitAnim: 0,
+                missAnim: 0
+            };
+        }
+        
+        // ========== СНАРЯДЫ ==========
+        let projectiles = [];
+        
+        function fireEchpochmak(targetX, targetY) {
+            projectiles.push({
+                x: rocket.x, y: rocket.y - rocket.height / 2,
+                targetX, targetY,
+                progress: 0, speed: 0.07,
+                size: 10, trail: []
+            });
+        }
+        
+        // ========== ЧАСТИЦЫ ==========
+        let particles = [];
+        
+        function spawnParticles(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = Math.random() * 4 + 2;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 1,
+                    decay: Math.random() * 0.03 + 0.02,
+                    color, size: Math.random() * 3 + 1
+                });
+            }
+        }
+        
+        // ========== ТЕКСТ ==========
+        let floatingTexts = [];
+        
+        function spawnFloatingText(x, y, text, color = '#fff') {
+            floatingTexts.push({ x, y, text, life: 1, decay: 0.015, color, vy: -2 });
+        }
+        
+        // ========== КНОПКИ ==========
+        const BUTTON_H = 46;
+        const BUTTON_GAP = 6;
+        const BUTTON_COLS = 2;
+        const BUTTON_BOTTOM_MARGIN = 16;
+        
+        function getButtonRect(index) {
+            const totalWidth = DESIGN_WIDTH * 0.88;
+            const startX = (DESIGN_WIDTH - totalWidth) / 2;
+            const btnWidth = (totalWidth - BUTTON_GAP * (BUTTON_COLS - 1)) / BUTTON_COLS;
+            const startY = DESIGN_HEIGHT - (BUTTON_H * 2 + BUTTON_GAP + BUTTON_BOTTOM_MARGIN);
+            
+            const col = index % BUTTON_COLS;
+            const row = Math.floor(index / BUTTON_COLS);
+            
+            return {
+                x: startX + col * (btnWidth + BUTTON_GAP),
+                y: startY + row * (BUTTON_H + BUTTON_GAP),
+                w: btnWidth, h: BUTTON_H
+            };
+        }
+        
+        function getEchpochmakButton() {
+            const w = 44, h = 36;
+            return {
+                x: DESIGN_WIDTH - w - 12,
+                y: DESIGN_HEIGHT - BUTTON_H * 2 - BUTTON_GAP - BUTTON_BOTTOM_MARGIN - h - 8,
+                w, h
+            };
+        }
+        
+        function getChakchakButton() {
+            const w = 44, h = 36;
+            const eb = getEchpochmakButton();
+            return { x: eb.x, y: eb.y - h - 6, w, h };
+        }
+        
+        // ========== УПРАВЛЕНИЕ ПРИМЕРАМИ ==========
+        function assignNewCurrent() {
+            for (let a of asteroids) a.isCurrent = false;
+            
+            let closest = null;
+            let closestDist = Infinity;
+            
+            for (let a of asteroids) {
+                if (!a.active || a.hitAnim > 0 || a.missAnim > 0) continue;
+                const dy = a.y - rocket.y;
+                const dx = a.x - rocket.x;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < closestDist) { closestDist = dist; closest = a; }
+            }
+            
+            if (closest) closest.isCurrent = true;
+        }
+        
+        function spawnNewExample() {
+            if (asteroids.length >= 4) return;
+            const ex = generateExample();
+            if (!asteroids.some(a => a.isCurrent && a.active)) ex.isCurrent = true;
+            asteroids.push(ex);
+        }
+        
+        // ========== ДЕЙСТВИЯ ИГРОКА ==========
+        function handleAnswer(index) {
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (!current) return;
+            
+            if (current.answers[index] === current.correct) {
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                const bonus = combo >= 10 ? 30 : combo >= 5 ? 20 : 10;
+                score += bonus;
+                speed = 1 + Math.floor(combo / 3) * 0.2;
+                if (speed > 4) speed = 4;
+                
+                spawnParticles(current.x, current.y, '#FFD700', 20);
+                spawnFloatingText(current.x, current.y, `+${bonus}`, '#FFD700');
+                
+                if (combo % 5 === 0 && combo > 0) {
+                    spawnFloatingText(rocket.x, rocket.y - 40, 'ДӨРЕС!', '#00ff88');
+                }
+                
+                // ===== ЭЧПОЧМАК — каждая серия из 3 =====
+                if (combo > 0 && combo % 3 === 0 && echpochmaks < 5) {
+                    echpochmaks++;
+                    spawnFloatingText(rocket.x - 30, rocket.y, '+🥟', '#ffaa00');
+                }
+                
+                // ===== ИМБА ЧАК-ЧАК — серия из 8! =====
+                if (combo > 0 && combo % 8 === 0 && chakchaks < 5) {
+                    chakchaks++;
+                    spawnFloatingText(rocket.x + 30, rocket.y, '+🍯 ИМБА!', '#ff6600');
+                    
+                    // Спецэффект для имбы
+                    for (let i = 0; i < 40; i++) {
+                        particles.push({
+                            x: rocket.x, y: rocket.y,
+                            vx: (Math.random() - 0.5) * 10,
+                            vy: (Math.random() - 0.5) * 10,
+                            life: 1, decay: 0.02,
+                            color: '#ff6600',
+                            size: Math.random() * 5 + 3
+                        });
+                    }
+                    
+                    // Кратковременная неуязвимость (1 секунда)
+                    rocket.invincible = true;
+                    rocket.invincibleTimer = 60;
+                }
+                
+                current.active = false;
+                current.isCurrent = false;
+                current.hitAnim = 15;
+                rocket.targetFlame = rocket.flameBoost;
+                rocket.shake = 5;
+            } else {
+                combo = 0;
+                lives--;
+                speed = Math.max(1, speed - 0.5);
+                
+                spawnParticles(current.x, current.y, '#ff4444', 10);
+                spawnFloatingText(current.x, current.y, 'ХАТА!', '#ff4444');
+                
+                current.missAnim = 15;
+                rocket.shake = 8;
+                rocket.targetFlame = rocket.flameNormal / 2;
+                
+                if (lives <= 0) { gameOver(); return; }
+            }
+            
+            assignNewCurrent();
+        }
+        
+        function fireAtCurrentExample() {
+            if (echpochmaks <= 0) return;
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (!current) return;
+            
+            echpochmaks--;
+            const target = current;
+            fireEchpochmak(target.x, target.y);
+            
+            setTimeout(() => {
+                if (target && target.active) {
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                    score += 15;
+                    
+                    spawnParticles(target.x, target.y, '#ffaa00', 25);
+                    spawnFloatingText(target.x, target.y, '+15 🥟', '#ffaa00');
+                    
+                    // Чак-чак за выстрел тоже может выпасть
+                    if (combo > 0 && combo % 8 === 0 && chakchaks < 5) {
+                        chakchaks++;
+                        spawnFloatingText(rocket.x + 30, rocket.y, '+🍯 ИМБА!', '#ff6600');
+                    }
+                    
+                    target.active = false;
+                    target.isCurrent = false;
+                    target.hitAnim = 15;
+                    assignNewCurrent();
+                }
+            }, 400);
+        }
+        
+        function activateChakchak() {
+            if (chakchaks <= 0) return;
+            chakchaks--;
+            
+            const count = asteroids.length;
+            for (let a of asteroids) {
+                spawnParticles(a.x, a.y, '#ff8800', 30);
+                a.active = false;
+                a.isCurrent = false;
+                a.hitAnim = 15;
+            }
+            score += count * 20;
+            combo += count;
+            if (combo > maxCombo) maxCombo = combo;
+            
+            spawnFloatingText(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2, 'ЧӘК-ЧӘК ИМБА!', '#ff6600');
+            
+            // Массовый эффект
+            for (let i = 0; i < 80; i++) {
+                particles.push({
+                    x: Math.random() * DESIGN_WIDTH,
+                    y: Math.random() * DESIGN_HEIGHT,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1, decay: 0.015,
+                    color: Math.random() > 0.5 ? '#ff8800' : '#ffaa00',
+                    size: Math.random() * 6 + 2
+                });
+            }
+            
+            // Неуязвимость на 2 секунды
+            rocket.invincible = true;
+            rocket.invincibleTimer = 120;
+            
+            spawnNewExample();
+            assignNewCurrent();
+        }
+        
+        // ========== КЛИКИ ==========
+        function getDesignCoords(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: (clientX - rect.left) / scaleX, y: (clientY - rect.top) / scaleY };
+        }
+        
+        function handleClick(clientX, clientY) {
+            const { x, y } = getDesignCoords(clientX, clientY);
+            
+            if (state === STATE.MENU) { startGame(); return; }
+            if (state === STATE.GAMEOVER) {
+                const btn = canvas._gameOverBtn;
+                if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) restartGame();
+                return;
+            }
+            if (state !== STATE.PLAYING) return;
+            
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            
+            if (current && current.answers.length > 0) {
+                for (let i = 0; i < current.answers.length; i++) {
+                    const btn = getButtonRect(i);
+                    if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+                        handleAnswer(i); return;
+                    }
+                }
+            }
+            
+            if (echpochmaks > 0) {
+                const eb = getEchpochmakButton();
+                if (x >= eb.x && x <= eb.x + eb.w && y >= eb.y && y <= eb.y + eb.h) {
+                    fireAtCurrentExample(); return;
+                }
+            }
+            
+            if (chakchaks > 0) {
+                const cb = getChakchakButton();
+                if (x >= cb.x && x <= cb.x + cb.w && y >= cb.y && y <= cb.y + cb.h) {
+                    activateChakchak(); return;
+                }
+            }
+        }
+        
+        canvas.addEventListener('click', (e) => handleClick(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) handleClick(e.touches[0].clientX, e.touches[0].clientY);
+        });
+        
+        // ========== СОСТОЯНИЯ ==========
+        function startGame() {
+            score = 0; combo = 0; maxCombo = 0;
+            lives = 3; echpochmaks = 3; chakchaks = 0;
+            speed = 1;
+            asteroids = []; projectiles = []; particles = []; floatingTexts = [];
+            asteroidTimer = 0;
+            
+            rocket.x = DESIGN_WIDTH / 2;
+            rocket.y = DESIGN_HEIGHT * 0.5;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            rocket.shake = 0;
+            rocket.invincible = false;
+            rocket.invincibleTimer = 0;
+            
+            initStars();
+            initClouds();
+            spawnNewExample();
+            assignNewCurrent();
+            
+            state = STATE.PLAYING;
+            showSliderTemporarily();
+        }
+        
+        function gameOver() {
+            state = STATE.GAMEOVER;
+            spawnParticles(rocket.x, rocket.y, '#ff4444', 40);
+        }
+        
+        function restartGame() { startGame(); }
+        
+        // ========== ОБНОВЛЕНИЕ ==========
+        function update() {
+            if (state !== STATE.PLAYING && state !== STATE.GAMEOVER) return;
+            
+            frameCount++;
+            const eff = speed * gameSpeedMultiplier;
+            
+            // Таймер неуязвимости
+            if (rocket.invincible) {
+                rocket.invincibleTimer--;
+                if (rocket.invincibleTimer <= 0) rocket.invincible = false;
+            }
+            
+            for (let s of stars) {
+                s.y += s.speed * eff;
+                s.twinkle += s.twinkleSpeed;
+                if (s.y > DESIGN_HEIGHT + 10) { s.y = -10; s.x = Math.random() * DESIGN_WIDTH; }
+            }
+            
+            for (let c of clouds) {
+                c.y += c.speed * eff * 0.3;
+                if (c.y > DESIGN_HEIGHT + 50) { c.y = -50; c.x = Math.random() * DESIGN_WIDTH; }
+            }
+            
+            rocket.currentFlame += (rocket.targetFlame - rocket.currentFlame) * 0.2;
+            if (rocket.shake > 0) rocket.shake *= 0.8;
+            if (rocket.shake < 0.1) rocket.shake = 0;
+            rocket.x = DESIGN_WIDTH / 2 + (Math.random() - 0.5) * rocket.shake;
+            if (rocket.targetFlame > rocket.flameNormal) {
+                rocket.targetFlame += (rocket.flameNormal - rocket.targetFlame) * 0.1;
+            }
+            
+            if (state === STATE.GAMEOVER) {
+                rocket.y += 2;
+                rocket.targetFlame = 0;
+                return;
+            }
+            
+            asteroidTimer++;
+            if (asteroidTimer >= ASTEROID_SPAWN_INTERVAL / eff) {
+                asteroidTimer = 0;
+                if (asteroids.length < 3) spawnNewExample();
+            }
+            
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const a = asteroids[i];
+                
+                if (a.active) {
+                    a.y += a.speed * eff;
+                    
+                    const dx = a.x - rocket.x;
+                    const dy = a.y - rocket.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Неуязвимость спасает от столкновения
+                    if (dist < a.radius + rocket.width / 2 + 5 && a.hitAnim === 0 && a.missAnim === 0) {
+                        if (rocket.invincible) {
+                            // Отбрасываем астероид!
+                            spawnParticles(a.x, a.y, '#ff8800', 15);
+                            a.active = false;
+                            a.isCurrent = false;
+                            a.hitAnim = 10;
+                            asteroids.splice(i, 1);
+                            score += 5;
+                            spawnFloatingText(a.x, a.y, 'ОТБИТ!', '#ff6600');
+                            assignNewCurrent();
+                            continue;
+                        }
+                        
+                        combo = 0;
+                        lives--;
+                        speed = Math.max(1, speed - 0.5);
+                        
+                        spawnParticles(a.x, a.y, '#ff4444', 20);
+                        spawnFloatingText(rocket.x, rocket.y, 'БӘРЕЛДЕК!', '#ff4444');
+                        
+                        a.active = false; a.isCurrent = false;
+                        asteroids.splice(i, 1);
+                        rocket.shake = 10;
+                        assignNewCurrent();
+                        
+                        if (lives <= 0) { gameOver(); return; }
+                        continue;
+                    }
+                    
+                    if (a.y > DESIGN_HEIGHT + 80) {
+                        a.isCurrent = false;
+                        asteroids.splice(i, 1);
+                        spawnNewExample();
+                        assignNewCurrent();
+                    }
+                } else {
+                    if (a.hitAnim > 0) a.hitAnim--;
+                    if (a.missAnim > 0) a.missAnim--;
+                    if (a.hitAnim <= 0 && a.missAnim <= 0) asteroids.splice(i, 1);
+                }
+            }
+            
+            for (let p of projectiles) {
+                p.progress += p.speed;
+                if (p.progress > 1) p.progress = 1;
+                if (frameCount % 3 === 0) {
+                    p.trail.push({
+                        x: p.x + (p.targetX - p.x) * p.progress,
+                        y: p.y + (p.targetY - p.y) * p.progress,
+                        life: 0.5
+                    });
+                }
+            }
+            projectiles = projectiles.filter(p => p.progress < 1);
+            for (let p of projectiles) {
+                p.trail = p.trail.filter(t => { t.life -= 0.05; return t.life > 0; });
+            }
+            
+            for (let p of particles) { p.x += p.vx; p.y += p.vy; p.life -= p.decay; }
+            particles = particles.filter(p => p.life > 0);
+            
+            for (let t of floatingTexts) { t.y += t.vy; t.life -= t.decay; }
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+        }
+        
+        // ========== ОТРИСОВКА ==========
+        function draw() {
+            ctx.clearRect(0, 0, gameWidth, gameHeight);
+            
+            const grad = ctx.createLinearGradient(0, 0, 0, DESIGN_HEIGHT);
+            grad.addColorStop(0, '#05051a'); grad.addColorStop(0.5, '#0a0a2e'); grad.addColorStop(1, '#1a1a3e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+            
+            for (let s of stars) {
+                const alpha = 0.5 + Math.sin(s.twinkle) * 0.4 + 0.1;
+                ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill();
+            }
+            
+            const earthY = DESIGN_HEIGHT + 30;
+            const eg = ctx.createRadialGradient(DESIGN_WIDTH / 2, earthY, 10, DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2);
+            eg.addColorStop(0, '#2d5a1e'); eg.addColorStop(0.7, '#1a3a10'); eg.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = eg;
+            ctx.beginPath(); ctx.arc(DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2, 0, Math.PI); ctx.fill();
+            
+            for (let c of clouds) {
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                ctx.beginPath(); ctx.ellipse(c.x, c.y, c.width / 2, 12, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(c.x - c.width * 0.25, c.y - 8, c.width * 0.35, 10, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(c.x + c.width * 0.25, c.y - 6, c.width * 0.3, 9, 0, 0, Math.PI * 2); ctx.fill();
+            }
+            
+            for (let a of asteroids) {
+                if (!a.active && a.hitAnim <= 0 && a.missAnim <= 0) continue;
+                
+                let alpha = 1, scale = 1;
+                if (a.hitAnim > 0) { alpha = a.hitAnim / 15; scale = 1 + (15 - a.hitAnim) * 0.1; }
+                if (a.missAnim > 0) alpha = a.missAnim / 15;
+                
+                ctx.save(); ctx.globalAlpha = alpha; ctx.translate(a.x, a.y); ctx.scale(scale, scale);
+                
+                ctx.fillStyle = '#5a5a6e'; ctx.strokeStyle = '#7a7a8e'; ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const rr = a.radius + Math.sin(i * 1.7 + frameCount * 0.05) * 4;
+                    const sx = Math.cos(angle) * rr, sy = Math.sin(angle) * rr;
+                    i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+                }
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                
+                ctx.fillStyle = '#4a4a5e';
+                ctx.beginPath(); ctx.arc(-7, -4, 5, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(4, 7, 3, 0, Math.PI * 2); ctx.fill();
+                
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(a.text, 0, 0);
+                
+                if (a.isCurrent && a.active) {
+                    const orbitR = a.radius + 20;
+                    ctx.font = 'bold 10px Arial';
+                    for (let i = 0; i < a.answers.length; i++) {
+                        const angle = (i / a.answers.length) * Math.PI * 2 - Math.PI / 2 + frameCount * 0.02;
+                        const sx = Math.cos(angle) * orbitR, sy = Math.sin(angle) * orbitR;
+                        
+                        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                        ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI * 2); ctx.fill();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.fillStyle = '#fff';
+                        ctx.fillText(a.answers[i], sx, sy);
+                    }
+                }
+                
+                ctx.restore();
+            }
+            
+            for (let p of projectiles) {
+                const cx = p.x + (p.targetX - p.x) * p.progress;
+                const cy = p.y + (p.targetY - p.y) * p.progress;
+                
+                for (let t of p.trail) {
+                    ctx.fillStyle = `rgba(255,180,50,${t.life})`;
+                    ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI * 2); ctx.fill();
+                }
+                
+                ctx.save(); ctx.translate(cx, cy);
+                ctx.rotate(Math.atan2(p.targetY - p.y, p.targetX - p.x) + Math.PI / 2);
+                ctx.fillStyle = '#ffaa00'; ctx.strokeStyle = '#cc8800'; ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(0, -p.size); ctx.lineTo(-p.size * 0.7, p.size * 0.6); ctx.lineTo(p.size * 0.7, p.size * 0.6);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.strokeStyle = '#885500'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(-2, -1); ctx.lineTo(0, p.size * 0.3); ctx.lineTo(2, -1); ctx.stroke();
+                ctx.restore();
+            }
+            
+            for (let p of particles) {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            
+            if (state !== STATE.GAMEOVER || rocket.y < DESIGN_HEIGHT + 100) drawRocket();
+            
+            for (let t of floatingTexts) {
+                ctx.globalAlpha = t.life;
+                ctx.fillStyle = t.color;
+                ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(t.text, t.x, t.y);
+            }
+            ctx.globalAlpha = 1;
+            
+            drawHUD();
+            if (state === STATE.MENU) drawMenu();
+            if (state === STATE.GAMEOVER) drawGameOver();
+        }
+        
+        function drawRocket() {
+            const rx = rocket.x, ry = rocket.y;
+            ctx.save(); ctx.translate(rx, ry);
+            
+            // Неуязвимость — свечение
+            if (rocket.invincible) {
+                const glowAlpha = 0.3 + Math.sin(frameCount * 0.2) * 0.2;
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 20;
+                ctx.globalAlpha = 1 + glowAlpha;
+            }
+            
+            const fh = rocket.currentFlame + Math.sin(frameCount * 0.3) * 5;
+            if (fh > 2) {
+                const fg = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + fh);
+                fg.addColorStop(0, '#ff4400'); fg.addColorStop(0.3, '#ff6600');
+                fg.addColorStop(0.6, '#ffaa00'); fg.addColorStop(1, 'rgba(255,200,50,0)');
+                ctx.fillStyle = fg;
+                ctx.beginPath();
+                const fw = rocket.width * 0.4, wb = Math.sin(frameCount * 0.5) * 3;
+                ctx.moveTo(-fw, rocket.height / 2);
+                ctx.quadraticCurveTo(-fw + wb, rocket.height / 2 + fh * 0.6, wb * 0.5, rocket.height / 2 + fh);
+                ctx.quadraticCurveTo(fw + wb * 0.5, rocket.height / 2 + fh * 0.6, fw, rocket.height / 2);
+                ctx.closePath(); ctx.fill();
+            }
+            
+            const bg = ctx.createLinearGradient(-rocket.width / 2, 0, rocket.width / 2, 0);
+            bg.addColorStop(0, '#c0c0c0'); bg.addColorStop(0.3, '#fff'); bg.addColorStop(0.7, '#e0e0e0'); bg.addColorStop(1, '#909090');
+            ctx.fillStyle = bg;
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(rocket.width / 2, -rocket.height / 2, rocket.width / 2, rocket.height / 2, rocket.width * 0.3, rocket.height / 2);
+            ctx.lineTo(-rocket.width * 0.3, rocket.height / 2);
+            ctx.bezierCurveTo(-rocket.width / 2, rocket.height / 2, -rocket.width / 2, -rocket.height / 2, 0, -rocket.height / 2);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#707070'; ctx.lineWidth = 1.5; ctx.stroke();
+            
+            ctx.fillStyle = '#4488cc'; ctx.strokeStyle = '#a0a0a0'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, -5, rocket.width * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.beginPath(); ctx.arc(-2, -7, 2.5, 0, Math.PI * 2); ctx.fill();
+            
+            ctx.fillStyle = '#a0a0a0'; ctx.strokeStyle = '#606060'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(-rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(-rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            
+            ctx.fillStyle = '#dd3333';
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(rocket.width * 0.15, -rocket.height / 2 + 8, rocket.width * 0.35, -rocket.height * 0.25, rocket.width * 0.3, -rocket.height * 0.15);
+            ctx.lineTo(-rocket.width * 0.3, -rocket.height * 0.15);
+            ctx.bezierCurveTo(-rocket.width * 0.35, -rocket.height * 0.25, -rocket.width * 0.15, -rocket.height / 2 + 8, 0, -rocket.height / 2);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#aa2222'; ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function drawHUD() {
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, DESIGN_WIDTH, 42);
+            
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'left';
+            ctx.fillText(`${score}`, 12, 28);
+            
+            if (combo >= 3) {
+                ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(`x${combo}`, DESIGN_WIDTH / 2, 28);
+            }
+            
+            // Индикатор неуязвимости
+            if (rocket.invincible) {
+                ctx.fillStyle = '#ff6600'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+                ctx.fillText('ИМБА!', DESIGN_WIDTH / 2, 15);
+            }
+            
+            ctx.textAlign = 'right'; ctx.font = '18px Arial';
+            let hearts = '';
+            for (let i = 0; i < lives; i++) hearts += '❤️';
+            for (let i = lives; i < 3; i++) hearts += '🖤';
+            ctx.fillText(hearts, DESIGN_WIDTH - 12, 28);
+            
+            // Прогресс до чак-чака
+            const nextChak = 8 - (combo % 8);
+            if (combo > 0 && nextChak < 8 && chakchaks < 5) {
+                ctx.fillStyle = 'rgba(255,140,0,0.6)'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(`🍯 через ${nextChak}`, DESIGN_WIDTH / 2 + 40, 15);
+            }
+            
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (state === STATE.PLAYING && current && current.answers.length > 0) {
+                for (let i = 0; i < current.answers.length; i++) {
+                    const btn = getButtonRect(i);
+                    const bg = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.h);
+                    bg.addColorStop(0, '#3a3a5a'); bg.addColorStop(1, '#2a2a4a');
+                    ctx.fillStyle = bg;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 10); ctx.fill(); ctx.stroke();
+                    
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(current.answers[i], btn.x + btn.w / 2, btn.y + btn.h / 2);
+                }
+            }
+            
+            if (echpochmaks > 0 && state === STATE.PLAYING) {
+                const eb = getEchpochmakButton();
+                ctx.fillStyle = 'rgba(255,150,30,0.4)'; ctx.strokeStyle = 'rgba(255,180,60,0.6)'; ctx.lineWidth = 2;
+                ctx.beginPath(); roundRect(ctx, eb.x, eb.y, eb.w, eb.h, 8); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`🥟×${echpochmaks}`, eb.x + eb.w / 2, eb.y + eb.h / 2);
+            }
+            
+            if (chakchaks > 0 && state === STATE.PLAYING) {
+                const cb = getChakchakButton();
+                ctx.fillStyle = 'rgba(255,140,0,0.5)'; ctx.strokeStyle = 'rgba(255,200,60,0.9)'; ctx.lineWidth = 2;
+                ctx.beginPath(); roundRect(ctx, cb.x, cb.y, cb.w, cb.h, 8); ctx.fill(); ctx.stroke();
+                
+                // Пульсация кнопки чак-чака
+                const chakPulse = Math.sin(frameCount * 0.08) * 0.2 + 0.8;
+                ctx.fillStyle = `rgba(255, 255, 255, ${chakPulse})`;
+                ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`🍯×${chakchaks}`, cb.x + cb.w / 2, cb.y + cb.h / 2);
+            }
+        }
+        
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+        
+        function drawMenu() {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+            
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('САН-РАКЕТА', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.26);
+            ctx.fillStyle = '#ffaa00'; ctx.font = '16px Arial';
+            ctx.fillText('Тапкырлау', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.26 + 30);
+            
+            ctx.fillStyle = '#ccc'; ctx.font = '13px Arial';
+            ctx.fillText('Решай примеры — лети к звёздам!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.38);
+            ctx.fillText('🥟 Эчпочмак — каждая серия из 3', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.43);
+            
+            ctx.fillStyle = '#ff8800'; ctx.font = 'bold 13px Arial';
+            ctx.fillText('🍯 ЧАК-ЧАК ИМБА — серия из 8!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.48);
+            
+            ctx.fillStyle = '#ff6600'; ctx.font = '11px Arial';
+            ctx.fillText('+ неуязвимость на время', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.52);
+            
+            const bw = 180, bh = 54;
+            const bx = DESIGN_WIDTH / 2 - bw / 2, by = DESIGN_HEIGHT * 0.60;
+            const pulse = Math.sin(frameCount * 0.05) * 0.15 + 0.85;
+            ctx.fillStyle = `rgba(255,140,0,${pulse})`; ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+            ctx.beginPath(); roundRect(ctx, bx, by, bw, bh, 15); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Arial';
+            ctx.fillText('СТАРТ', DESIGN_WIDTH / 2, by + bh / 2);
+        }
+        
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+            
+            ctx.fillStyle = '#ff4444'; ctx.font = 'bold 28px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('УЕН БЕТТЕ!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.28);
+            
+            ctx.fillStyle = '#fff'; ctx.font = '18px Arial';
+            ctx.fillText(`Счёт: ${score}`, DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.40);
+            ctx.fillText(`Лучшая серия: x${maxCombo}`, DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.46);
+            
+            const bw = 180, bh = 54;
+            const bx = DESIGN_WIDTH / 2 - bw / 2, by = DESIGN_HEIGHT * 0.55;
+            ctx.fillStyle = '#ff6600'; ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+            ctx.beginPath(); roundRect(ctx, bx, by, bw, bh, 15); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial';
+            ctx.fillText('ЯҢАДАН', DESIGN_WIDTH / 2, by + bh / 2);
+            
+            canvas._gameOverBtn = { x: bx, y: by, w: bw, h: bh };
+        }
+        
+        // ========== ЦИКЛ ==========
+        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+        
+        function init() {
+            rocket.x = DESIGN_WIDTH / 2;
+            rocket.y = DESIGN_HEIGHT * 0.5;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            rocket.invincible = false;
+            rocket.invincibleTimer = 0;
+            initStars();
+            initClouds();
+            state = STATE.MENU;
+        }
+        
+        init();
+        gameLoop();
+        
+        console.log('🚀 Сан-Ракета v3 — ИМБА ЧАК-ЧАК!');
+        console.log('🍯 Чак-чак: серия из 8 → +неуязвимость');
+        console.log('🥟 Эчпочмак: серия из 3');
+        console.log('🛡️ Неуязвимость: астероиды отлетают сами');
+    </script>
+</body>
+</html>
