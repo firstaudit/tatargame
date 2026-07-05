@@ -2,560 +2,1232 @@
 <html lang="tt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Сан-Ракета</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Сан-Ракета — Тапкырлау</title>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html,body {
-            width:100%; height:100%; overflow:hidden; background:#000;
-            font-family:Arial,sans-serif;
-            touch-action:manipulation; -webkit-tap-highlight-color:transparent;
-            user-select:none; -webkit-user-select:none;
-            position:fixed; top:0; left:0;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        #gc {
-            position:absolute; top:0; left:0; width:100%; height:100%; overflow:hidden;
+        
+        body {
+            background: #0a0a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
+        
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 700px;
+            max-width: 100vw;
+            max-height: 100vh;
+            overflow: hidden;
+            border: 2px solid #333;
+            border-radius: 10px;
+        }
+        
         canvas {
-            display:block; position:absolute; top:0; left:0; width:100%; height:100%;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        @media (max-width: 420px) {
+            #gameContainer {
+                width: 100vw;
+                height: 100vh;
+                border: none;
+                border-radius: 0;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="gc"><canvas id="g"></canvas></div>
+    <div id="gameContainer">
+        <canvas id="game"></canvas>
+    </div>
+
     <script>
-        const canvas = document.getElementById('g');
+        // ========== САН-РАКЕТА ДЕМО ==========
+        
+        const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
-        const container = document.getElementById('gc');
+        const container = document.getElementById('gameContainer');
         
-        const DW = 375, DH = 667;
-        let sx = 1, sy = 1, gw = DW, gh = DH;
-        
-        function resize() {
-            const r = container.getBoundingClientRect();
-            const s = Math.min(r.width / DW, r.height / DH);
-            gw = Math.floor(DW * s); gh = Math.floor(DH * s);
-            canvas.width = gw; canvas.height = gh;
-            canvas.style.width = gw + 'px'; canvas.style.height = gh + 'px';
-            canvas.style.left = ((r.width - gw) / 2) + 'px';
-            canvas.style.top = ((r.height - gh) / 2) + 'px';
-            sx = gw / DW; sy = gh / DH;
+        // Размер канваса
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
         }
-        resize();
-        window.addEventListener('resize', resize);
-        window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
         
-        const STATE = { MENU: 0, PLAY: 1, OVER: 2 };
+        // ========== СОСТОЯНИЯ ==========
+        const STATE = { MENU: 'menu', PLAYING: 'playing' };
         let state = STATE.MENU;
-        let score = 0, combo = 0, maxCombo = 0, lives = 3, echp = 3, chak = 0, spd = 1, fc = 0;
         
+        // ========== ИГРОВЫЕ ПЕРЕМЕННЫЕ ==========
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let lives = 3;
+        let echpochmaks = 3;
+        let chakchaks = 0;
+        let speed = 1;
+        let frameCount = 0;
+        
+        // ========== РАКЕТА ==========
         const rocket = {
-            x: 0, y: 0, w: 24, h: 48,
-            fn: 20, fb: 40, cf: 20, tf: 20, sh: 0, inv: false, invt: 0
+            x: 0,
+            y: 0,
+            width: 24,
+            height: 48,
+            flameNormal: 20,
+            flameBoost: 40,
+            currentFlame: 20,
+            targetFlame: 20,
+            shake: 0
         };
         
+        // ========== ФОН (ЗВЁЗДЫ) ==========
         let stars = [];
-        for (let i = 0; i < 50; i++) {
-            stars.push({
-                x: Math.random() * DW, y: Math.random() * DH,
-                s: Math.random() * 2 + 0.5, sp: Math.random() * 1.5 + 0.3,
-                tw: Math.random() * 6.28, tws: Math.random() * 0.03 + 0.01
+        const STAR_COUNT = 80;
+        
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2.5 + 0.5,
+                    speed: Math.random() * 1.5 + 0.3,
+                    twinkle: Math.random() * Math.PI * 2,
+                    twinkleSpeed: Math.random() * 0.03 + 0.01
+                });
+            }
+        }
+        
+        // ========== ОБЛАКА ==========
+        let clouds = [];
+        const CLOUD_COUNT = 8;
+        
+        function initClouds() {
+            clouds = [];
+            for (let i = 0; i < CLOUD_COUNT; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height - 80 - Math.random() * 60,
+                    width: Math.random() * 60 + 30,
+                    speed: Math.random() * 0.5 + 0.2
+                });
+            }
+        }
+        
+        // ========== АСТЕРОИДЫ-ПРИМЕРЫ ==========
+        let asteroids = [];
+        const ASTEROID_SPAWN_INTERVAL = 90;
+        let asteroidTimer = 0;
+        
+        function generateExample() {
+            const a = Math.floor(Math.random() * 9) + 2;
+            const b = Math.floor(Math.random() * 9) + 2;
+            const correctAnswer = a * b;
+            
+            const wrongAnswers = new Set();
+            wrongAnswers.add(correctAnswer);
+            
+            while (wrongAnswers.size < 4) {
+                let wrong;
+                const r = Math.random();
+                if (r < 0.4) {
+                    wrong = correctAnswer + Math.floor(Math.random() * 10) - 5;
+                } else if (r < 0.7) {
+                    wrong = (a - 1) * b || (a + 1) * b || a * (b + 1) || a * (b - 1);
+                } else {
+                    wrong = Math.floor(Math.random() * 81) + 4;
+                }
+                if (wrong !== correctAnswer && wrong > 0 && wrong < 100) {
+                    wrongAnswers.add(wrong);
+                }
+            }
+            
+            const answers = [...wrongAnswers];
+            for (let i = answers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [answers[i], answers[j]] = [answers[j], answers[i]];
+            }
+            
+            return {
+                a: a,
+                b: b,
+                text: `${a} × ${b}`,
+                correct: correctAnswer,
+                answers: answers,
+                isCurrent: false,
+                x: Math.random() * (canvas.width - 120) + 60,
+                y: -50,
+                radius: 32,
+                speed: 1.2 + speed * 0.3,
+                active: true,
+                hitAnim: 0,
+                missAnim: 0
+            };
+        }
+        
+        // ========== СНАРЯДЫ (ЭЧПОЧМАКИ) ==========
+        let projectiles = [];
+        
+        function fireEchpochmak(targetX, targetY) {
+            projectiles.push({
+                x: rocket.x,
+                y: rocket.y - rocket.height / 2,
+                targetX: targetX,
+                targetY: targetY,
+                progress: 0,
+                speed: 0.06,
+                size: 12,
+                trail: []
             });
         }
         
-        let asts = [];
-        const ASI = 90;
-        let astt = 0;
+        // ========== ЧАСТИЦЫ ==========
+        let particles = [];
         
-        function genEx() {
-            const a = Math.floor(Math.random() * 9) + 2;
-            const b = Math.floor(Math.random() * 9) + 2;
-            const ca = a * b;
-            const wa = new Set(); wa.add(ca);
-            while (wa.size < 4) {
-                let w;
-                const r = Math.random();
-                if (r < 0.4) w = ca + Math.floor(Math.random() * 10) - 5;
-                else if (r < 0.7) w = (a - 1) * b || (a + 1) * b || a * (b + 1) || a * (b - 1);
-                else w = Math.floor(Math.random() * 81) + 4;
-                if (w !== ca && w > 0 && w < 100) wa.add(w);
+        function spawnParticles(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = Math.random() * 4 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 1,
+                    decay: Math.random() * 0.03 + 0.02,
+                    color: color,
+                    size: Math.random() * 3 + 1
+                });
             }
-            const ans = [...wa];
-            for (let i = ans.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [ans[i], ans[j]] = [ans[j], ans[i]];
-            }
+        }
+        
+        // ========== ТЕКСТОВЫЕ ВСПЛЫШКИ ==========
+        let floatingTexts = [];
+        
+        function spawnFloatingText(x, y, text, color = '#fff') {
+            floatingTexts.push({
+                x: x,
+                y: y,
+                text: text,
+                life: 1,
+                decay: 0.015,
+                color: color,
+                vy: -2
+            });
+        }
+        
+        // ========== КНОПКИ ОТВЕТОВ ==========
+        const BUTTON_H = 50;
+        const BUTTON_GAP = 6;
+        const BUTTON_COLS = 2;
+        
+        function getButtonRect(index) {
+            const totalWidth = canvas.width * 0.85;
+            const startX = (canvas.width - totalWidth) / 2;
+            const btnWidth = (totalWidth - BUTTON_GAP * (BUTTON_COLS - 1)) / BUTTON_COLS;
+            const startY = canvas.height - (BUTTON_H * 2 + BUTTON_GAP + 25);
+            
+            const col = index % BUTTON_COLS;
+            const row = Math.floor(index / BUTTON_COLS);
+            
             return {
-                a, b, txt: `${a} × ${b}`, cor: ca, ans,
-                cur: false, x: Math.random() * (DW - 100) + 50, y: -50,
-                r: 28, sp: 1.0 + Math.random() * 0.4, act: true, ha: 0, ma: 0
+                x: startX + col * (btnWidth + BUTTON_GAP),
+                y: startY + row * (BUTTON_H + BUTTON_GAP),
+                w: btnWidth,
+                h: BUTTON_H
             };
         }
         
-        let proj = [], parts = [], fts = [];
-        
-        function spP(x, y, c, n = 10) {
-            for (let i = 0; i < n; i++) {
-                const a = Math.random() * 6.28;
-                const s = Math.random() * 3 + 1;
-                parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 1, d: 0.03, c, s: Math.random() * 2 + 1 });
-            }
-        }
-        function spF(x, y, t, c = '#fff') { fts.push({ x, y, t, l: 1, d: 0.015, c, vy: -2 }); }
-        
-        // Кнопки — побольше, поудобнее для тапа
-        const BH = 52, BG = 8, BCOLS = 2, BBM = 20;
-        function getBR(i) {
-            const tw = DW * 0.9;
-            const sx2 = (DW - tw) / 2;
-            const bw = (tw - BG * (BCOLS - 1)) / BCOLS;
-            const sy2 = DH - (BH * 2 + BG + BBM);
+        // ========== КНОПКИ ОРУЖИЯ ==========
+        function getEchpochmakButton() {
+            const w = 50;
+            const h = 40;
             return {
-                x: sx2 + (i % BCOLS) * (bw + BG),
-                y: sy2 + Math.floor(i / BCOLS) * (BH + BG),
-                w: bw, h: BH
+                x: canvas.width - w - 15,
+                y: canvas.height - BUTTON_H * 2 - BUTTON_GAP - 25 - h - 10,
+                w: w,
+                h: h
             };
         }
-        function getEB() { const w = 48, h = 40; return { x: DW - w - 10, y: DH - BH * 2 - BG - BBM - h - 10, w, h }; }
-        function getCB() { const w = 48, h = 40; const eb = getEB(); return { x: eb.x, y: eb.y - h - 8, w, h }; }
         
-        function asgnC() {
-            for (let a of asts) a.cur = false;
-            let cl = null, cd = Infinity;
-            for (let a of asts) {
-                if (!a.act || a.ha > 0 || a.ma > 0) continue;
-                const d = Math.sqrt((a.x - rocket.x) ** 2 + (a.y - rocket.y) ** 2);
-                if (d < cd) { cd = d; cl = a; }
-            }
-            if (cl) cl.cur = true;
+        function getChakchakButton() {
+            const w = 50;
+            const h = 40;
+            const echpBtn = getEchpochmakButton();
+            return {
+                x: echpBtn.x,
+                y: echpBtn.y - h - 8,
+                w: w,
+                h: h
+            };
         }
-        function spw() { if (asts.length < 4) { const e = genEx(); if (!asts.some(a => a.cur && a.act)) e.cur = true; asts.push(e); } }
         
-        function ans(i) {
-            const c = asts.find(a => a.cur && a.act);
-            if (!c) return;
-            if (c.ans[i] === c.cor) {
-                combo++; if (combo > maxCombo) maxCombo = combo;
-                score += combo >= 10 ? 30 : combo >= 5 ? 20 : 10;
-                spd = Math.min(4, 1 + Math.floor(combo / 3) * 0.2);
-                spP(c.x, c.y, '#FFD700', 15);
-                spF(c.x, c.y, `+${combo >= 10 ? 30 : combo >= 5 ? 20 : 10}`, '#FFD700');
-                if (combo % 3 === 0 && echp < 5) { echp++; spF(rocket.x - 30, rocket.y, '+🥟', '#fa0'); }
-                if (combo % 8 === 0 && chak < 5) {
-                    chak++; spF(rocket.x + 30, rocket.y, '+🍯!', '#f60');
-                    rocket.inv = true; rocket.invt = 60;
-                    for (let j = 0; j < 30; j++) parts.push({ x: rocket.x, y: rocket.y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, l: 1, d: 0.02, c: '#f60', s: Math.random() * 4 + 2 });
+        // ========== УПРАВЛЕНИЕ ПРИМЕРАМИ ==========
+        function assignNewCurrent() {
+            // Снимаем флаг у всех
+            for (let a of asteroids) a.isCurrent = false;
+            
+            // Назначаем ближайший к ракете активный астероид
+            let closest = null;
+            let closestDist = Infinity;
+            
+            for (let a of asteroids) {
+                if (!a.active || a.hitAnim > 0 || a.missAnim > 0) continue;
+                const dy = a.y - rocket.y;
+                const dx = a.x - rocket.x;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = a;
                 }
-                c.act = false; c.cur = false; c.ha = 12;
-                rocket.tf = rocket.fb; rocket.sh = 4;
-            } else {
-                combo = 0; lives--; spd = Math.max(1, spd - 0.5);
-                spP(c.x, c.y, '#f44', 8);
-                spF(c.x, c.y, 'ХАТА!', '#f44');
-                c.ma = 12; rocket.sh = 6; rocket.tf = rocket.fn / 2;
-                if (lives <= 0) { state = STATE.OVER; spP(rocket.x, rocket.y, '#f44', 30); return; }
             }
-            asgnC();
+            
+            if (closest) {
+                closest.isCurrent = true;
+            }
         }
         
-        function fire() {
-            if (echp <= 0) return;
-            const c = asts.find(a => a.cur && a.act);
-            if (!c) return;
-            echp--;
-            const tgt = c;
-            proj.push({ x: rocket.x, y: rocket.y - rocket.h / 2, tx: tgt.x, ty: tgt.y, p: 0, sp: 0.07, s: 10, tr: [] });
+        function spawnNewExample() {
+            if (asteroids.length >= 4) return;
+            const ex = generateExample();
+            
+            // Если нет активного текущего примера — делаем этот текущим
+            const hasCurrent = asteroids.some(a => a.isCurrent && a.active);
+            if (!hasCurrent) {
+                ex.isCurrent = true;
+            }
+            
+            asteroids.push(ex);
+        }
+        
+        // ========== ДЕЙСТВИЯ ИГРОКА ==========
+        function handleAnswer(index) {
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (!current) return;
+            
+            const chosen = current.answers[index];
+            const correct = current.correct;
+            
+            if (chosen === correct) {
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                const bonus = combo >= 10 ? 30 : combo >= 5 ? 20 : 10;
+                score += bonus;
+                speed = 1 + Math.floor(combo / 3) * 0.2;
+                if (speed > 4) speed = 4;
+                
+                spawnParticles(current.x, current.y, '#FFD700', 20);
+                spawnFloatingText(current.x, current.y, `+${bonus}`, '#FFD700');
+                
+                if (combo % 5 === 0 && combo > 0) {
+                    spawnFloatingText(rocket.x, rocket.y - 50, 'ДӨРЕС!', '#00ff88');
+                }
+                
+                if (combo > 0 && combo % 5 === 0 && echpochmaks < 5) {
+                    echpochmaks++;
+                    spawnFloatingText(rocket.x - 40, rocket.y, '+🥟', '#ffaa00');
+                }
+                
+                if (combo > 0 && combo % 20 === 0 && chakchaks < 3) {
+                    chakchaks++;
+                    spawnFloatingText(rocket.x + 40, rocket.y, '+🍯', '#ff8800');
+                }
+                
+                current.active = false;
+                current.isCurrent = false;
+                current.hitAnim = 15;
+                rocket.targetFlame = rocket.flameBoost;
+                rocket.shake = 5;
+                
+            } else {
+                combo = 0;
+                lives--;
+                speed = Math.max(1, speed - 0.5);
+                
+                spawnParticles(current.x, current.y, '#ff4444', 10);
+                spawnFloatingText(current.x, current.y, 'ХАТА!', '#ff4444');
+                
+                current.missAnim = 15;
+                rocket.shake = 8;
+                rocket.targetFlame = rocket.flameNormal / 2;
+                
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            assignNewCurrent();
+        }
+        
+        function fireAtCurrentExample() {
+            if (echpochmaks <= 0) return;
+            
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (!current) return;
+            
+            echpochmaks--;
+            
+            const targetExample = current;
+            fireEchpochmak(targetExample.x, targetExample.y);
+            
             setTimeout(() => {
-                if (tgt && tgt.act) {
-                    combo++; if (combo > maxCombo) maxCombo = combo;
+                if (targetExample && targetExample.active) {
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
                     score += 15;
-                    spP(tgt.x, tgt.y, '#fa0', 20);
-                    spF(tgt.x, tgt.y, '+15 🥟', '#fa0');
-                    if (combo % 8 === 0 && chak < 5) { chak++; spF(rocket.x + 30, rocket.y, '+🍯!', '#f60'); rocket.inv = true; rocket.invt = 60; }
-                    tgt.act = false; tgt.cur = false; tgt.ha = 12;
-                    asgnC();
+                    
+                    spawnParticles(targetExample.x, targetExample.y, '#ffaa00', 25);
+                    spawnFloatingText(targetExample.x, targetExample.y, '+15 🥟', '#ffaa00');
+                    
+                    targetExample.active = false;
+                    targetExample.isCurrent = false;
+                    targetExample.hitAnim = 15;
+                    
+                    assignNewCurrent();
                 }
             }, 400);
         }
         
-        function ult() {
-            if (chak <= 0) return;
-            chak--;
-            const cnt = asts.length;
-            for (let a of asts) { spP(a.x, a.y, '#f80', 20); a.act = false; a.cur = false; a.ha = 12; }
-            score += cnt * 20; combo += cnt; if (combo > maxCombo) maxCombo = combo;
-            spF(DW / 2, DH / 2, 'ЧӘК-ЧӘК!', '#f60');
-            rocket.inv = true; rocket.invt = 90;
-            for (let i = 0; i < 60; i++) parts.push({ x: Math.random() * DW, y: Math.random() * DH, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, l: 1, d: 0.015, c: Math.random() > 0.5 ? '#f80' : '#fa0', s: Math.random() * 5 + 2 });
-            spw(); asgnC();
+        function activateChakchak() {
+            if (chakchaks <= 0) return;
+            chakchaks--;
+            
+            const count = asteroids.length;
+            for (let a of asteroids) {
+                spawnParticles(a.x, a.y, '#ff8800', 30);
+                a.active = false;
+                a.isCurrent = false;
+                a.hitAnim = 15;
+            }
+            score += count * 20;
+            combo += count;
+            if (combo > maxCombo) maxCombo = combo;
+            
+            spawnFloatingText(canvas.width / 2, canvas.height / 2, 'ЧӘК-ЧӘК!', '#ff8800');
+            
+            spawnNewExample();
+            assignNewCurrent();
+            
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    life: 1,
+                    decay: 0.02,
+                    color: '#ffaa00',
+                    size: Math.random() * 4 + 2
+                });
+            }
         }
         
-        function getDC(cx, cy) {
-            const r = canvas.getBoundingClientRect();
-            return { x: (cx - r.left) / sx, y: (cy - r.top) / sy };
-        }
-        
-        function click(cx, cy) {
-            const { x, y } = getDC(cx, cy);
-            if (state === STATE.MENU) { start(); return; }
-            if (state === STATE.OVER) {
-                const b = canvas._gobtn;
-                if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) start();
+        // ========== ОБРАБОТКА КЛИКОВ ==========
+        function handleClick(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+            
+            if (state === STATE.MENU) {
+                startGame();
                 return;
             }
-            if (state !== STATE.PLAY) return;
             
-            const c = asts.find(a => a.cur && a.act);
-            if (c) {
-                for (let i = 0; i < c.ans.length; i++) {
-                    const b = getBR(i);
-                    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { ans(i); return; }
+            if (state === STATE.GAMEOVER) {
+                const btn = canvas._gameOverBtn;
+                if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+                    restartGame();
+                }
+                return;
+            }
+            
+            if (state !== STATE.PLAYING) return;
+            
+            // Находим текущий астероид
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            
+            // Кнопки ответов
+            if (current && current.answers.length > 0) {
+                for (let i = 0; i < current.answers.length; i++) {
+                    const btn = getButtonRect(i);
+                    if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+                        handleAnswer(i);
+                        return;
+                    }
                 }
             }
             
-            if (echp > 0) { const eb = getEB(); if (x >= eb.x && x <= eb.x + eb.w && y >= eb.y && y <= eb.y + eb.h) { fire(); return; } }
-            if (chak > 0) { const cb = getCB(); if (x >= cb.x && x <= cb.x + cb.w && y >= cb.y && y <= cb.y + cb.h) { ult(); return; } }
+            // Кнопка эчпочмака
+            if (echpochmaks > 0) {
+                const eb = getEchpochmakButton();
+                if (x >= eb.x && x <= eb.x + eb.w && y >= eb.y && y <= eb.y + eb.h) {
+                    fireAtCurrentExample();
+                    return;
+                }
+            }
+            
+            // Кнопка чак-чака
+            if (chakchaks > 0) {
+                const cb = getChakchakButton();
+                if (x >= cb.x && x <= cb.x + cb.w && y >= cb.y && y <= cb.y + cb.h) {
+                    activateChakchak();
+                    return;
+                }
+            }
         }
         
-        canvas.addEventListener('click', e => click(e.clientX, e.clientY));
-        canvas.addEventListener('touchstart', e => { e.preventDefault(); if (e.touches.length) click(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        canvas.addEventListener('click', (e) => handleClick(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                handleClick(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        });
         
-        function start() {
-            score = 0; combo = 0; maxCombo = 0; lives = 3; echp = 3; chak = 0; spd = 1;
-            asts = []; proj = []; parts = []; fts = []; astt = 0;
-            rocket.x = DW / 2; rocket.y = DH * 0.5;
-            rocket.cf = rocket.fn; rocket.tf = rocket.fn; rocket.sh = 0;
-            rocket.inv = false; rocket.invt = 0;
-            for (let s of stars) s.y = Math.random() * DH;
-            spw(); asgnC();
-            state = STATE.PLAY;
+        // ========== ИГРОВЫЕ СОСТОЯНИЯ ==========
+        function startGame() {
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            lives = 3;
+            echpochmaks = 3;
+            chakchaks = 0;
+            speed = 1;
+            asteroids = [];
+            projectiles = [];
+            particles = [];
+            floatingTexts = [];
+            asteroidTimer = 0;
+            
+            rocket.x = canvas.width / 2;
+            rocket.y = canvas.height * 0.55;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            rocket.shake = 0;
+            
+            initStars();
+            initClouds();
+            spawnNewExample();
+            assignNewCurrent();
+            
+            state = STATE.PLAYING;
         }
         
-        function upd() {
-            if (state !== STATE.PLAY && state !== STATE.OVER) return;
-            fc++;
-            const eff = spd;
+        function gameOver() {
+            state = STATE.GAMEOVER;
+            spawnParticles(rocket.x, rocket.y, '#ff4444', 40);
+        }
+        
+        function restartGame() {
+            startGame();
+        }
+        
+        // ========== ОБНОВЛЕНИЕ ==========
+        function update() {
+            if (state !== STATE.PLAYING && state !== STATE.GAMEOVER) return;
             
-            if (rocket.inv) { rocket.invt--; if (rocket.invt <= 0) rocket.inv = false; }
+            frameCount++;
             
-            for (let s of stars) { s.y += s.sp * eff; s.tw += s.tws; if (s.y > DH + 10) { s.y = -10; s.x = Math.random() * DW; } }
+            // Звёзды
+            for (let s of stars) {
+                s.y += s.speed * speed;
+                s.twinkle += s.twinkleSpeed;
+                if (s.y > canvas.height + 10) {
+                    s.y = -10;
+                    s.x = Math.random() * canvas.width;
+                }
+            }
             
-            rocket.cf += (rocket.tf - rocket.cf) * 0.2;
-            if (rocket.sh > 0) rocket.sh *= 0.8;
-            if (rocket.sh < 0.1) rocket.sh = 0;
-            rocket.x = DW / 2 + (Math.random() - 0.5) * rocket.sh;
-            if (rocket.tf > rocket.fn) rocket.tf += (rocket.fn - rocket.tf) * 0.1;
+            // Облака
+            for (let c of clouds) {
+                c.y += c.speed * speed * 0.3;
+                if (c.y > canvas.height + 50) {
+                    c.y = -50;
+                    c.x = Math.random() * canvas.width;
+                }
+            }
             
-            if (state === STATE.OVER) { rocket.y += 2; rocket.tf = 0; return; }
+            // Ракета
+            rocket.currentFlame += (rocket.targetFlame - rocket.currentFlame) * 0.2;
+            if (rocket.shake > 0) rocket.shake *= 0.8;
+            if (rocket.shake < 0.1) rocket.shake = 0;
+            rocket.x = canvas.width / 2 + (Math.random() - 0.5) * rocket.shake;
+            if (rocket.targetFlame > rocket.flameNormal) {
+                rocket.targetFlame += (rocket.flameNormal - rocket.targetFlame) * 0.1;
+            }
             
-            astt++;
-            if (astt >= ASI / eff) { astt = 0; if (asts.length < 3) spw(); }
+            if (state === STATE.GAMEOVER) {
+                rocket.y += 2;
+                rocket.targetFlame = 0;
+                return;
+            }
             
-            for (let i = asts.length - 1; i >= 0; i--) {
-                const a = asts[i];
-                if (a.act) {
-                    a.y += a.sp * eff;
-                    const d = Math.sqrt((a.x - rocket.x) ** 2 + (a.y - rocket.y) ** 2);
-                    if (d < a.r + rocket.w / 2 + 5 && a.ha === 0 && a.ma === 0) {
-                        if (rocket.inv) {
-                            spP(a.x, a.y, '#f80', 10);
-                            a.act = false; a.cur = false; a.ha = 8; asts.splice(i, 1);
-                            score += 5; spF(a.x, a.y, 'ОТБИТ!', '#f60');
-                            asgnC(); continue;
+            // Спавн астероидов
+            asteroidTimer++;
+            if (asteroidTimer >= ASTEROID_SPAWN_INTERVAL / speed) {
+                asteroidTimer = 0;
+                if (asteroids.length < 3) {
+                    spawnNewExample();
+                }
+            }
+            
+            // Движение астероидов и столкновения
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const a = asteroids[i];
+                
+                if (a.active) {
+                    a.y += a.speed * speed;
+                    
+                    // Столкновение с ракетой
+                    const dx = a.x - rocket.x;
+                    const dy = a.y - rocket.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < a.radius + rocket.width / 2 + 5 && a.hitAnim === 0 && a.missAnim === 0) {
+                        combo = 0;
+                        lives--;
+                        speed = Math.max(1, speed - 0.5);
+                        
+                        spawnParticles(a.x, a.y, '#ff4444', 20);
+                        spawnFloatingText(rocket.x, rocket.y, 'БӘРЕЛДЕК!', '#ff4444');
+                        
+                        a.active = false;
+                        a.isCurrent = false;
+                        asteroids.splice(i, 1);
+                        
+                        rocket.shake = 10;
+                        
+                        assignNewCurrent();
+                        
+                        if (lives <= 0) {
+                            gameOver();
+                            return;
                         }
-                        combo = 0; lives--; spd = Math.max(1, spd - 0.5);
-                        spP(a.x, a.y, '#f44', 15);
-                        spF(rocket.x, rocket.y, 'БӘРЕЛДЕК!', '#f44');
-                        a.act = false; a.cur = false; asts.splice(i, 1);
-                        rocket.sh = 8; asgnC();
-                        if (lives <= 0) { state = STATE.OVER; spP(rocket.x, rocket.y, '#f44', 30); return; }
                         continue;
                     }
-                    if (a.y > DH + 80) { a.cur = false; asts.splice(i, 1); spw(); asgnC(); }
+                    
+                    // Улетел за экран
+                    if (a.y > canvas.height + 80) {
+                        a.isCurrent = false;
+                        asteroids.splice(i, 1);
+                        spawnNewExample();
+                        assignNewCurrent();
+                    }
                 } else {
-                    if (a.ha > 0) a.ha--;
-                    if (a.ma > 0) a.ma--;
-                    if (a.ha <= 0 && a.ma <= 0) asts.splice(i, 1);
+                    // Неактивный — уменьшаем анимацию
+                    if (a.hitAnim > 0) a.hitAnim--;
+                    if (a.missAnim > 0) a.missAnim--;
+                    if (a.hitAnim <= 0 && a.missAnim <= 0) {
+                        asteroids.splice(i, 1);
+                    }
                 }
             }
             
-            proj = proj.filter(p => { p.p += p.sp; return p.p < 1; });
-            parts = parts.filter(p => { p.x += p.vx; p.y += p.vy; p.l -= p.d; return p.l > 0; });
-            fts = fts.filter(t => { t.y += t.vy; t.l -= t.d; return t.l > 0; });
+            // Снаряды
+            for (let p of projectiles) {
+                p.progress += p.speed;
+                if (p.progress > 1) p.progress = 1;
+                if (frameCount % 3 === 0) {
+                    p.trail.push({
+                        x: p.x + (p.targetX - p.x) * p.progress,
+                        y: p.y + (p.targetY - p.y) * p.progress,
+                        life: 0.5
+                    });
+                }
+            }
+            
+            projectiles = projectiles.filter(p => p.progress < 1);
+            
+            for (let p of projectiles) {
+                p.trail = p.trail.filter(t => {
+                    t.life -= 0.05;
+                    return t.life > 0;
+                });
+            }
+            
+            // Частицы
+            for (let p of particles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+            }
+            particles = particles.filter(p => p.life > 0);
+            
+            // Плавающий текст
+            for (let t of floatingTexts) {
+                t.y += t.vy;
+                t.life -= t.decay;
+            }
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
         }
         
+        // ========== ОТРИСОВКА ==========
         function draw() {
-            ctx.clearRect(0, 0, gw, gh);
+            // Фон
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#05051a');
+            gradient.addColorStop(0.5, '#0a0a2e');
+            gradient.addColorStop(1, '#1a1a3e');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            const grd = ctx.createLinearGradient(0, 0, 0, DH);
-            grd.addColorStop(0, '#05051a'); grd.addColorStop(0.5, '#0a0a2e'); grd.addColorStop(1, '#1a1a3e');
-            ctx.fillStyle = grd; ctx.fillRect(0, 0, DW, DH);
-            
+            // Звёзды
             for (let s of stars) {
-                ctx.fillStyle = `rgba(255,255,255,${0.5 + Math.sin(s.tw) * 0.3 + 0.1})`;
-                ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, 6.28); ctx.fill();
+                const alpha = 0.5 + Math.sin(s.twinkle) * 0.4 + 0.1;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
             }
             
-            const ey = DH + 30;
-            const eg = ctx.createRadialGradient(DW / 2, ey, 10, DW / 2, ey, DW * 1.2);
-            eg.addColorStop(0, '#2d5a1e'); eg.addColorStop(0.7, '#1a3a10'); eg.addColorStop(1, '#0a0a1a');
-            ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(DW / 2, ey, DW * 1.2, 0, 3.14); ctx.fill();
+            // Земля
+            const earthY = canvas.height + 40;
+            const earthGrad = ctx.createRadialGradient(
+                canvas.width / 2, earthY, 10,
+                canvas.width / 2, earthY, canvas.width * 1.2
+            );
+            earthGrad.addColorStop(0, '#2d5a1e');
+            earthGrad.addColorStop(0.7, '#1a3a10');
+            earthGrad.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = earthGrad;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, earthY, canvas.width * 1.2, 0, Math.PI);
+            ctx.fill();
             
-            for (let a of asts) {
-                if (!a.act && a.ha <= 0 && a.ma <= 0) continue;
-                let al = 1, sc = 1;
-                if (a.ha > 0) { al = a.ha / 12; sc = 1 + (12 - a.ha) * 0.08; }
-                if (a.ma > 0) al = a.ma / 12;
-                if (al <= 0) continue;
-                
-                ctx.save(); ctx.globalAlpha = al; ctx.translate(a.x, a.y); ctx.scale(sc, sc);
-                
-                ctx.fillStyle = '#5a5a6e'; ctx.strokeStyle = '#7a7a8e'; ctx.lineWidth = 2;
+            // Облака
+            for (let c of clouds) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
                 ctx.beginPath();
-                for (let i = 0; i < 8; i++) {
-                    const ang = (i / 8) * 6.28;
-                    const rr = a.r + Math.sin(i * 1.7 + fc * 0.05) * 3;
-                    const sx2 = Math.cos(ang) * rr, sy2 = Math.sin(ang) * rr;
-                    i === 0 ? ctx.moveTo(sx2, sy2) : ctx.lineTo(sx2, sy2);
-                }
-                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.ellipse(c.x, c.y, c.width / 2, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x - c.width * 0.25, c.y - 8, c.width * 0.35, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x + c.width * 0.25, c.y - 6, c.width * 0.3, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Астероиды
+            for (let a of asteroids) {
+                if (!a.active && a.hitAnim <= 0 && a.missAnim <= 0) continue;
                 
+                let alpha = 1;
+                let scale = 1;
+                if (a.hitAnim > 0) {
+                    alpha = a.hitAnim / 15;
+                    scale = 1 + (15 - a.hitAnim) * 0.1;
+                }
+                if (a.missAnim > 0) {
+                    alpha = a.missAnim / 15;
+                }
+                
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(a.x, a.y);
+                ctx.scale(scale, scale);
+                
+                // Камень
+                ctx.fillStyle = '#5a5a6e';
+                ctx.strokeStyle = '#7a7a8e';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const segments = 8;
+                const r = a.radius;
+                for (let i = 0; i < segments; i++) {
+                    const angle = (i / segments) * Math.PI * 2;
+                    const rr = r + Math.sin(i * 1.7 + frameCount * 0.05) * 4;
+                    const sx = Math.cos(angle) * rr;
+                    const sy = Math.sin(angle) * rr;
+                    if (i === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Кратеры
                 ctx.fillStyle = '#4a4a5e';
-                ctx.beginPath(); ctx.arc(-6, -4, 4, 0, 6.28); ctx.fill();
-                ctx.beginPath(); ctx.arc(3, 6, 3, 0, 6.28); ctx.fill();
+                ctx.beginPath();
+                ctx.arc(-8, -5, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(5, 8, 4, 0, Math.PI * 2);
+                ctx.fill();
                 
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(a.txt, 0, 0);
+                // Текст примера
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(a.text, 0, 0);
                 
-                // Если текущий — подсветка
-                if (a.cur && a.act) {
-                    ctx.strokeStyle = 'rgba(255,200,50,0.6)'; ctx.lineWidth = 2;
-                    ctx.beginPath(); ctx.arc(0, 0, a.r + 6, 0, 6.28); ctx.stroke();
+                // Ответы-спутники вокруг текущего астероида
+                if (a.isCurrent && a.active) {
+                    const orbitR = a.radius + 22;
+                    ctx.font = 'bold 10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    for (let i = 0; i < a.answers.length; i++) {
+                        const angle = (i / a.answers.length) * Math.PI * 2 - Math.PI / 2 + frameCount * 0.02;
+                        const sx = Math.cos(angle) * orbitR;
+                        const sy = Math.sin(angle) * orbitR;
+                        
+                        // Кружок спутника
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                        ctx.beginPath();
+                        ctx.arc(sx, sy, 13, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                        
+                        // Цифра
+                        ctx.fillStyle = '#fff';
+                        ctx.fillText(a.answers[i], sx, sy);
+                    }
                 }
                 
                 ctx.restore();
             }
             
-            for (let p of proj) {
-                const cx = p.x + (p.tx - p.x) * p.p;
-                const cy = p.y + (p.ty - p.y) * p.p;
-                ctx.fillStyle = '#fa0'; ctx.strokeStyle = '#c80'; ctx.lineWidth = 1.5;
-                ctx.save(); ctx.translate(cx, cy);
-                ctx.rotate(Math.atan2(p.ty - p.y, p.tx - p.x) + 1.57);
+            // Снаряды (эчпочмаки)
+            for (let p of projectiles) {
+                const cx = p.x + (p.targetX - p.x) * p.progress;
+                const cy = p.y + (p.targetY - p.y) * p.progress;
+                
+                // Трейл
+                for (let t of p.trail) {
+                    ctx.fillStyle = `rgba(255, 180, 50, ${t.life})`;
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Эчпочмак
+                ctx.save();
+                ctx.translate(cx, cy);
+                const angle = Math.atan2(p.targetY - p.y, p.targetX - p.x) + Math.PI / 2;
+                ctx.rotate(angle);
+                
+                ctx.fillStyle = '#ffaa00';
+                ctx.strokeStyle = '#cc8800';
+                ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                ctx.moveTo(0, -p.s); ctx.lineTo(-p.s * 0.7, p.s * 0.6); ctx.lineTo(p.s * 0.7, p.s * 0.6);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.moveTo(0, -p.size);
+                ctx.lineTo(-p.size * 0.7, p.size * 0.6);
+                ctx.lineTo(p.size * 0.7, p.size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.strokeStyle = '#885500';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-3, -2);
+                ctx.lineTo(0, p.size * 0.3);
+                ctx.lineTo(3, -2);
+                ctx.stroke();
+                
                 ctx.restore();
             }
             
-            for (let p of parts) {
-                ctx.globalAlpha = p.l;
-                ctx.fillStyle = p.c;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.s * p.l, 0, 6.28); ctx.fill();
+            // Частицы
+            for (let p of particles) {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                ctx.fill();
             }
             ctx.globalAlpha = 1;
             
             // Ракета
-            if (state !== STATE.OVER || rocket.y < DH + 100) {
-                ctx.save(); ctx.translate(rocket.x, rocket.y);
-                
-                if (rocket.inv) {
-                    ctx.shadowColor = '#f60'; ctx.shadowBlur = 15;
-                }
-                
-                const fh = rocket.cf + Math.sin(fc * 0.3) * 4;
-                if (fh > 2) {
-                    const fg = ctx.createLinearGradient(0, rocket.h / 2, 0, rocket.h / 2 + fh);
-                    fg.addColorStop(0, '#f40'); fg.addColorStop(0.3, '#f60'); fg.addColorStop(0.6, '#fa0'); fg.addColorStop(1, 'rgba(255,200,50,0)');
-                    ctx.fillStyle = fg;
-                    ctx.beginPath();
-                    const fw = rocket.w * 0.4, wb = Math.sin(fc * 0.5) * 2;
-                    ctx.moveTo(-fw, rocket.h / 2);
-                    ctx.quadraticCurveTo(-fw + wb, rocket.h / 2 + fh * 0.6, wb * 0.5, rocket.h / 2 + fh);
-                    ctx.quadraticCurveTo(fw + wb * 0.5, rocket.h / 2 + fh * 0.6, fw, rocket.h / 2);
-                    ctx.closePath(); ctx.fill();
-                }
-                
-                const bg = ctx.createLinearGradient(-rocket.w / 2, 0, rocket.w / 2, 0);
-                bg.addColorStop(0, '#c0c0c0'); bg.addColorStop(0.3, '#fff'); bg.addColorStop(0.7, '#e0e0e0'); bg.addColorStop(1, '#909090');
-                ctx.fillStyle = bg; ctx.strokeStyle = '#707070'; ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(0, -rocket.h / 2);
-                ctx.bezierCurveTo(rocket.w / 2, -rocket.h / 2, rocket.w / 2, rocket.h / 2, rocket.w * 0.3, rocket.h / 2);
-                ctx.lineTo(-rocket.w * 0.3, rocket.h / 2);
-                ctx.bezierCurveTo(-rocket.w / 2, rocket.h / 2, -rocket.w / 2, -rocket.h / 2, 0, -rocket.h / 2);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                
-                ctx.fillStyle = '#48c'; ctx.strokeStyle = '#a0a0a0'; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(0, -5, rocket.w * 0.22, 0, 6.28); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(-2, -7, 2.5, 0, 6.28); ctx.fill();
-                
-                ctx.fillStyle = '#a0a0a0'; ctx.strokeStyle = '#606060'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(-rocket.w * 0.3, rocket.h * 0.25); ctx.lineTo(-rocket.w * 0.8, rocket.h * 0.45); ctx.lineTo(-rocket.w * 0.35, rocket.h * 0.45); ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(rocket.w * 0.3, rocket.h * 0.25); ctx.lineTo(rocket.w * 0.8, rocket.h * 0.45); ctx.lineTo(rocket.w * 0.35, rocket.h * 0.45); ctx.closePath(); ctx.fill(); ctx.stroke();
-                
-                ctx.fillStyle = '#d33'; ctx.strokeStyle = '#a22';
-                ctx.beginPath();
-                ctx.moveTo(0, -rocket.h / 2);
-                ctx.bezierCurveTo(rocket.w * 0.15, -rocket.h / 2 + 8, rocket.w * 0.35, -rocket.h * 0.25, rocket.w * 0.3, -rocket.h * 0.15);
-                ctx.lineTo(-rocket.w * 0.3, -rocket.h * 0.15);
-                ctx.bezierCurveTo(-rocket.w * 0.35, -rocket.h * 0.25, -rocket.w * 0.15, -rocket.h / 2 + 8, 0, -rocket.h / 2);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                
-                ctx.restore();
+            if (state !== STATE.GAMEOVER || rocket.y < canvas.height + 100) {
+                drawRocket();
             }
             
-            // Текст
-            for (let t of fts) {
-                ctx.globalAlpha = t.l;
-                ctx.fillStyle = t.c;
-                ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
-                ctx.fillText(t.t, t.x, t.y);
+            // Плавающий текст
+            for (let t of floatingTexts) {
+                ctx.globalAlpha = t.life;
+                ctx.fillStyle = t.color;
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(t.text, t.x, t.y);
             }
             ctx.globalAlpha = 1;
             
             // HUD
-            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, DW, 40);
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-            ctx.fillText(`${score}`, 10, 27);
+            drawHUD();
             
-            if (combo >= 3) { ctx.fillStyle = '#fa0'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.fillText(`x${combo}`, DW / 2, 27); }
-            
-            if (rocket.inv) { ctx.fillStyle = '#f60'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('ИМБА!', DW / 2, 14); }
-            
-            ctx.textAlign = 'right'; ctx.font = '17px Arial';
-            let hearts = '';
-            for (let i = 0; i < lives; i++) hearts += '❤️';
-            for (let i = lives; i < 3; i++) hearts += '🖤';
-            ctx.fillText(hearts, DW - 10, 27);
-            
-            // Кнопки
-            const cur = asts.find(a => a.cur && a.act);
-            if (state === STATE.PLAY && cur) {
-                for (let i = 0; i < cur.ans.length; i++) {
-                    const b = getBR(i);
-                    const bg2 = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
-                    bg2.addColorStop(0, '#3a3a5a'); bg2.addColorStop(1, '#2a2a4a');
-                    ctx.fillStyle = bg2;
-                    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    const r2 = 12;
-                    ctx.moveTo(b.x + r2, b.y); ctx.lineTo(b.x + b.w - r2, b.y);
-                    ctx.quadraticCurveTo(b.x + b.w, b.y, b.x + b.w, b.y + r2);
-                    ctx.lineTo(b.x + b.w, b.y + b.h - r2);
-                    ctx.quadraticCurveTo(b.x + b.w, b.y + b.h, b.x + b.w - r2, b.y + b.h);
-                    ctx.lineTo(b.x + r2, b.y + b.h);
-                    ctx.quadraticCurveTo(b.x, b.y + b.h, b.x, b.y + b.h - r2);
-                    ctx.lineTo(b.x, b.y + r2);
-                    ctx.quadraticCurveTo(b.x, b.y, b.x + r2, b.y);
-                    ctx.closePath(); ctx.fill(); ctx.stroke();
-                    
-                    ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText(cur.ans[i], b.x + b.w / 2, b.y + b.h / 2);
-                }
-            }
-            
-            if (echp > 0 && state === STATE.PLAY) {
-                const eb = getEB();
-                ctx.fillStyle = 'rgba(255,150,30,0.5)'; ctx.strokeStyle = 'rgba(255,180,60,0.7)'; ctx.lineWidth = 2;
-                ctx.beginPath();
-                const r2 = 8;
-                ctx.moveTo(eb.x + r2, eb.y); ctx.lineTo(eb.x + eb.w - r2, eb.y);
-                ctx.quadraticCurveTo(eb.x + eb.w, eb.y, eb.x + eb.w, eb.y + r2);
-                ctx.lineTo(eb.x + eb.w, eb.y + eb.h - r2);
-                ctx.quadraticCurveTo(eb.x + eb.w, eb.y + eb.h, eb.x + eb.w - r2, eb.y + eb.h);
-                ctx.lineTo(eb.x + r2, eb.y + eb.h);
-                ctx.quadraticCurveTo(eb.x, eb.y + eb.h, eb.x, eb.y + eb.h - r2);
-                ctx.lineTo(eb.x, eb.y + r2);
-                ctx.quadraticCurveTo(eb.x, eb.y, eb.x + r2, eb.y);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#fff'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(`🥟×${echp}`, eb.x + eb.w / 2, eb.y + eb.h / 2);
-            }
-            
-            if (chak > 0 && state === STATE.PLAY) {
-                const cb = getCB();
-                const pls = Math.sin(fc * 0.08) * 0.2 + 0.8;
-                ctx.fillStyle = `rgba(255,140,0,${0.5 * pls})`; ctx.strokeStyle = 'rgba(255,200,60,0.9)'; ctx.lineWidth = 2;
-                ctx.beginPath();
-                const r2 = 8;
-                ctx.moveTo(cb.x + r2, cb.y); ctx.lineTo(cb.x + cb.w - r2, cb.y);
-                ctx.quadraticCurveTo(cb.x + cb.w, cb.y, cb.x + cb.w, cb.y + r2);
-                ctx.lineTo(cb.x + cb.w, cb.y + cb.h - r2);
-                ctx.quadraticCurveTo(cb.x + cb.w, cb.y + cb.h, cb.x + cb.w - r2, cb.y + cb.h);
-                ctx.lineTo(cb.x + r2, cb.y + cb.h);
-                ctx.quadraticCurveTo(cb.x, cb.y + cb.h, cb.x, cb.y + cb.h - r2);
-                ctx.lineTo(cb.x, cb.y + r2);
-                ctx.quadraticCurveTo(cb.x, cb.y, cb.x + r2, cb.y);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(`🍯×${chak}`, cb.x + cb.w / 2, cb.y + cb.h / 2);
-            }
-            
+            // Меню
             if (state === STATE.MENU) {
-                ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, DW, DH);
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
-                ctx.fillText('САН-РАКЕТА', DW / 2, DH * 0.26);
-                ctx.fillStyle = '#fa0'; ctx.font = '16px Arial';
-                ctx.fillText('Тапкырлау', DW / 2, DH * 0.26 + 30);
-                ctx.fillStyle = '#ccc'; ctx.font = '12px Arial';
-                ctx.fillText('Решай примеры — лети к звёздам!', DW / 2, DH * 0.40);
-                ctx.fillText('🥟 серия из 3  |  🍯 серия из 8', DW / 2, DH * 0.45);
-                
-                const bw = 180, bh = 54;
-                const bx = DW / 2 - bw / 2, by = DH * 0.55;
-                const pulse = Math.sin(fc * 0.05) * 0.15 + 0.85;
-                ctx.fillStyle = `rgba(255,140,0,${pulse})`; ctx.strokeStyle = '#fa0'; ctx.lineWidth = 3;
-                ctx.beginPath();
-                const r2 = 15;
-                ctx.moveTo(bx + r2, by); ctx.lineTo(bx + bw - r2, by);
-                ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r2);
-                ctx.lineTo(bx + bw, by + bh - r2);
-                ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r2, by + bh);
-                ctx.lineTo(bx + r2, by + bh);
-                ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r2);
-                ctx.lineTo(bx, by + r2);
-                ctx.quadraticCurveTo(bx, by, bx + r2, by);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Arial';
-                ctx.fillText('СТАРТ', DW / 2, by + bh / 2);
+                drawMenu();
             }
             
-            if (state === STATE.OVER) {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, DW, DH);
-                ctx.fillStyle = '#f44'; ctx.font = 'bold 28px Arial'; ctx.textAlign = 'center';
-                ctx.fillText('УЕН БЕТТЕ!', DW / 2, DH * 0.28);
-                ctx.fillStyle = '#fff'; ctx.font = '18px Arial';
-                ctx.fillText(`Счёт: ${score}`, DW / 2, DH * 0.40);
-                ctx.fillText(`Лучшая серия: x${maxCombo}`, DW / 2, DH * 0.46);
-                
-                const bw = 180, bh = 54;
-                const bx = DW / 2 - bw / 2, by = DH * 0.55;
-                ctx.fillStyle = '#f60'; ctx.strokeStyle = '#fa0'; ctx.lineWidth = 3;
-                ctx.beginPath();
-                const r2 = 15;
-                ctx.moveTo(bx + r2, by); ctx.lineTo(bx + bw - r2, by);
-                ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r2);
-                ctx.lineTo(bx + bw, by + bh - r2);
-                ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r2, by + bh);
-                ctx.lineTo(bx + r2, by + bh);
-                ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r2);
-                ctx.lineTo(bx, by + r2);
-                ctx.quadraticCurveTo(bx, by, bx + r2, by);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial';
-                ctx.fillText('ЯҢАДАН', DW / 2, by + bh / 2);
-                
-                canvas._gobtn = { x: bx, y: by, w: bw, h: bh };
+            // Game Over
+            if (state === STATE.GAMEOVER) {
+                drawGameOver();
             }
         }
         
-        function loop() { upd(); draw(); requestAnimationFrame(loop); }
+        function drawRocket() {
+            const rx = rocket.x;
+            const ry = rocket.y;
+            
+            ctx.save();
+            ctx.translate(rx, ry);
+            
+            // Пламя
+            const flameHeight = rocket.currentFlame + Math.sin(frameCount * 0.3) * 5;
+            if (flameHeight > 2) {
+                const flameGrad = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + flameHeight);
+                flameGrad.addColorStop(0, '#ff4400');
+                flameGrad.addColorStop(0.3, '#ff6600');
+                flameGrad.addColorStop(0.6, '#ffaa00');
+                flameGrad.addColorStop(1, 'rgba(255, 200, 50, 0)');
+                
+                ctx.fillStyle = flameGrad;
+                ctx.beginPath();
+                const fw = rocket.width * 0.4;
+                const fh = flameHeight;
+                const wobble = Math.sin(frameCount * 0.5) * 3;
+                ctx.moveTo(-fw, rocket.height / 2);
+                ctx.quadraticCurveTo(-fw + wobble, rocket.height / 2 + fh * 0.6,
+                    wobble * 0.5, rocket.height / 2 + fh);
+                ctx.quadraticCurveTo(fw + wobble * 0.5, rocket.height / 2 + fh * 0.6,
+                    fw, rocket.height / 2);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Внутреннее пламя
+                const innerGrad = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + flameHeight * 0.5);
+                innerGrad.addColorStop(0, '#88ccff');
+                innerGrad.addColorStop(1, 'rgba(100, 180, 255, 0)');
+                ctx.fillStyle = innerGrad;
+                ctx.beginPath();
+                ctx.moveTo(-fw * 0.5, rocket.height / 2);
+                ctx.quadraticCurveTo(0, rocket.height / 2 + flameHeight * 0.35,
+                    0, rocket.height / 2 + flameHeight * 0.45);
+                ctx.quadraticCurveTo(0, rocket.height / 2 + flameHeight * 0.35,
+                    fw * 0.5, rocket.height / 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            // Корпус
+            const bodyGrad = ctx.createLinearGradient(-rocket.width / 2, 0, rocket.width / 2, 0);
+            bodyGrad.addColorStop(0, '#c0c0c0');
+            bodyGrad.addColorStop(0.3, '#ffffff');
+            bodyGrad.addColorStop(0.7, '#e0e0e0');
+            bodyGrad.addColorStop(1, '#909090');
+            
+            ctx.fillStyle = bodyGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(
+                rocket.width / 2, -rocket.height / 2,
+                rocket.width / 2, rocket.height / 2,
+                rocket.width * 0.3, rocket.height / 2
+            );
+            ctx.lineTo(-rocket.width * 0.3, rocket.height / 2);
+            ctx.bezierCurveTo(
+                -rocket.width / 2, rocket.height / 2,
+                -rocket.width / 2, -rocket.height / 2,
+                0, -rocket.height / 2
+            );
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.strokeStyle = '#707070';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Иллюминатор
+            ctx.fillStyle = '#4488cc';
+            ctx.strokeStyle = '#a0a0a0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, -5, rocket.width * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(-3, -8, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Крылья
+            ctx.fillStyle = '#a0a0a0';
+            ctx.strokeStyle = '#606060';
+            ctx.lineWidth = 1;
+            
+            ctx.beginPath();
+            ctx.moveTo(-rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(-rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(-rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Нос (красный)
+            ctx.fillStyle = '#dd3333';
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(
+                rocket.width * 0.15, -rocket.height / 2 + 8,
+                rocket.width * 0.35, -rocket.height * 0.25,
+                rocket.width * 0.3, -rocket.height * 0.15
+            );
+            ctx.lineTo(-rocket.width * 0.3, -rocket.height * 0.15);
+            ctx.bezierCurveTo(
+                -rocket.width * 0.35, -rocket.height * 0.25,
+                -rocket.width * 0.15, -rocket.height / 2 + 8,
+                0, -rocket.height / 2
+            );
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#aa2222';
+            ctx.stroke();
+            
+            ctx.restore();
+        }
         
-        rocket.x = DW / 2; rocket.y = DH * 0.5;
-        rocket.cf = rocket.fn; rocket.tf = rocket.fn;
-        spw(); asgnC();
-        loop();
+        function drawHUD() {
+            // Панель сверху
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, 50);
+            
+            // Счёт
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Счёт: ${score}`, 15, 33);
+            
+            // Комбо
+            if (combo >= 3) {
+                ctx.fillStyle = '#ffaa00';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`x${combo}`, canvas.width / 2, 33);
+            }
+            
+            // Жизни
+            ctx.textAlign = 'right';
+            ctx.font = '20px Arial';
+            let hearts = '';
+            for (let i = 0; i < lives; i++) hearts += '❤️';
+            for (let i = lives; i < 3; i++) hearts += '🖤';
+            ctx.fillText(hearts, canvas.width - 15, 33);
+            
+            // Кнопки ответов внизу
+            const current = asteroids.find(a => a.isCurrent && a.active);
+            if (state === STATE.PLAYING && current && current.answers.length > 0) {
+                for (let i = 0; i < current.answers.length; i++) {
+                    const btn = getButtonRect(i);
+                    
+                    const btnGrad = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.h);
+                    btnGrad.addColorStop(0, '#3a3a5a');
+                    btnGrad.addColorStop(1, '#2a2a4a');
+                    
+                    ctx.fillStyle = btnGrad;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 12);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(current.answers[i], btn.x + btn.w / 2, btn.y + btn.h / 2);
+                }
+            }
+            
+            // Кнопка эчпочмака
+            if (echpochmaks > 0 && state === STATE.PLAYING) {
+                const eb = getEchpochmakButton();
+                ctx.fillStyle = 'rgba(255, 150, 30, 0.4)';
+                ctx.strokeStyle = 'rgba(255, 180, 60, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                roundRect(ctx, eb.x, eb.y, eb.w, eb.h, 10);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`🥟×${echpochmaks}`, eb.x + eb.w / 2, eb.y + eb.h / 2);
+            }
+            
+            // Кнопка чак-чака
+            if (chakchaks > 0 && state === STATE.PLAYING) {
+                const cb = getChakchakButton();
+                ctx.fillStyle = 'rgba(255, 140, 0, 0.4)';
+                ctx.strokeStyle = 'rgba(255, 180, 30, 0.7)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                roundRect(ctx, cb.x, cb.y, cb.w, cb.h, 10);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`🍯×${chakchaks}`, cb.x + cb.w / 2, cb.y + cb.h / 2);
+            }
+        }
+        
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+        
+        function drawMenu() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('САН-РАКЕТА', canvas.width / 2, canvas.height * 0.3);
+            
+            ctx.fillStyle = '#ffaa00';
+            ctx.font = '18px Arial';
+            ctx.fillText('Тапкырлау', canvas.width / 2, canvas.height * 0.3 + 35);
+            
+            ctx.fillStyle = '#ccc';
+            ctx.font = '14px Arial';
+            ctx.fillText('Решай примеры — лети к звёздам!', canvas.width / 2, canvas.height * 0.42);
+            ctx.fillText('🥟 Эчпочмак — стрельба по примерам', canvas.width / 2, canvas.height * 0.47);
+            ctx.fillText('🍯 Чак-чак — уничтожает всё на экране', canvas.width / 2, canvas.height * 0.51);
+            
+            const btnW = 200;
+            const btnH = 60;
+            const btnX = canvas.width / 2 - btnW / 2;
+            const btnY = canvas.height * 0.62;
+            
+            const pulse = Math.sin(frameCount * 0.05) * 0.15 + 0.85;
+            
+            ctx.fillStyle = `rgba(255, 140, 0, ${pulse})`;
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            roundRect(ctx, btnX, btnY, btnW, btnH, 15);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText('СТАРТ', canvas.width / 2, btnY + btnH / 2);
+        }
+        
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#ff4444';
+            ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('УЕН БЕТТЕ!', canvas.width / 2, canvas.height * 0.3);
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Счёт: ${score}`, canvas.width / 2, canvas.height * 0.42);
+            ctx.fillText(`Лучшая серия: x${maxCombo}`, canvas.width / 2, canvas.height * 0.48);
+            
+            const btnW = 200;
+            const btnH = 60;
+            const btnX = canvas.width / 2 - btnW / 2;
+            const btnY = canvas.height * 0.58;
+            
+            ctx.fillStyle = '#ff6600';
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            roundRect(ctx, btnX, btnY, btnW, btnH, 15);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 22px Arial';
+            ctx.fillText('ЯҢАДАН', canvas.width / 2, btnY + btnH / 2);
+            
+            canvas._gameOverBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+        }
+        
+        // ========== ИГРОВОЙ ЦИКЛ ==========
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ========== ЗАПУСК ==========
+        function init() {
+            rocket.x = canvas.width / 2;
+            rocket.y = canvas.height * 0.55;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            
+            initStars();
+            initClouds();
+            
+            state = STATE.MENU;
+        }
+        
+        init();
+        gameLoop();
+        
+        console.log('🚀 Сан-Ракета готова!');
+        console.log('🥟 Жми кнопку справа для выстрела эчпочмаком');
+        console.log('🍯 Чак-чак — серия из 20 правильных');
+        console.log('🔄 Ответы вращаются вокруг текущего астероида');
     </script>
 </body>
 </html>
