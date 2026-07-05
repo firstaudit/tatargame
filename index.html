@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="tt">
 <head>
     <meta charset="UTF-8">
@@ -44,6 +44,7 @@
             height: 100%;
         }
         
+        /* Ползунок скорости */
         #speedControl {
             position: fixed;
             bottom: 10px;
@@ -133,7 +134,7 @@
     </div>
 
     <script>
-        // ========== САН-РАКЕТА v3 — ИМБА ЧАК-ЧАК ЗА 8 ==========
+        // ========== САН-РАКЕТА ДЕМО v2 — Pixel Perfect Mobile ==========
         
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -142,6 +143,7 @@
         const speedValue = document.getElementById('speedValue');
         const speedControl = document.getElementById('speedControl');
         
+        // Базовый размер дизайна (iPhone SE — маленький экран)
         const DESIGN_WIDTH = 375;
         const DESIGN_HEIGHT = 667;
         
@@ -150,11 +152,13 @@
         let gameWidth = DESIGN_WIDTH;
         let gameHeight = DESIGN_HEIGHT;
         
+        // Pixel-perfect ресайз
         function resizeCanvas() {
             const rect = container.getBoundingClientRect();
             const w = rect.width;
             const h = rect.height;
             
+            // Считаем масштаб, чтобы дизайн вписался без обрезки
             const scale = Math.min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT);
             gameWidth = Math.floor(DESIGN_WIDTH * scale);
             gameHeight = Math.floor(DESIGN_HEIGHT * scale);
@@ -172,8 +176,11 @@
         
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
-        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
         
+        // Ползунок скорости
         let gameSpeedMultiplier = 1.0;
         
         speedSlider.addEventListener('input', () => {
@@ -181,11 +188,14 @@
             speedValue.textContent = gameSpeedMultiplier.toFixed(2) + 'x';
         });
         
+        // Прячем ползунок во время игры (полупрозрачный)
         let hideSliderTimeout;
         function showSliderTemporarily() {
             speedControl.classList.remove('hidden');
             clearTimeout(hideSliderTimeout);
-            hideSliderTimeout = setTimeout(() => speedControl.classList.add('hidden'), 3000);
+            hideSliderTimeout = setTimeout(() => {
+                speedControl.classList.add('hidden');
+            }, 3000);
         }
         speedControl.addEventListener('touchstart', showSliderTemporarily);
         speedControl.addEventListener('click', showSliderTemporarily);
@@ -207,10 +217,14 @@
         
         // ========== РАКЕТА ==========
         const rocket = {
-            x: 0, y: 0,
-            width: 24, height: 48,
-            flameNormal: 20, flameBoost: 40,
-            currentFlame: 20, targetFlame: 20,
+            x: 0,
+            y: 0,
+            width: 24,
+            height: 48,
+            flameNormal: 20,
+            flameBoost: 40,
+            currentFlame: 20,
+            targetFlame: 20,
             shake: 0
         };
         
@@ -302,10 +316,13 @@
         
         function fireEchpochmak(targetX, targetY) {
             projectiles.push({
-                x: rocket.x, y: rocket.y - rocket.height / 2,
+                x: rocket.x,
+                y: rocket.y - rocket.height / 2,
                 targetX, targetY,
-                progress: 0, speed: 0.07,
-                size: 10, trail: []
+                progress: 0,
+                speed: 0.07,
+                size: 10,
+                trail: []
             });
         }
         
@@ -322,19 +339,26 @@
                     vy: Math.sin(angle) * spd,
                     life: 1,
                     decay: Math.random() * 0.03 + 0.02,
-                    color, size: Math.random() * 3 + 1
+                    color,
+                    size: Math.random() * 3 + 1
                 });
             }
         }
         
-        // ========== ТЕКСТ ==========
+        // ========== ТЕКСТОВЫЕ ВСПЛЫШКИ ==========
         let floatingTexts = [];
         
         function spawnFloatingText(x, y, text, color = '#fff') {
-            floatingTexts.push({ x, y, text, life: 1, decay: 0.015, color, vy: -2 });
+            floatingTexts.push({
+                x, y, text,
+                life: 1,
+                decay: 0.015,
+                color,
+                vy: -2
+            });
         }
         
-        // ========== КНОПКИ ==========
+        // ========== КНОПКИ (в дизайн-координатах) ==========
         const BUTTON_H = 46;
         const BUTTON_GAP = 6;
         const BUTTON_COLS = 2;
@@ -352,12 +376,14 @@
             return {
                 x: startX + col * (btnWidth + BUTTON_GAP),
                 y: startY + row * (BUTTON_H + BUTTON_GAP),
-                w: btnWidth, h: BUTTON_H
+                w: btnWidth,
+                h: BUTTON_H
             };
         }
         
         function getEchpochmakButton() {
-            const w = 44, h = 36;
+            const w = 44;
+            const h = 36;
             return {
                 x: DESIGN_WIDTH - w - 12,
                 y: DESIGN_HEIGHT - BUTTON_H * 2 - BUTTON_GAP - BUTTON_BOTTOM_MARGIN - h - 8,
@@ -366,9 +392,14 @@
         }
         
         function getChakchakButton() {
-            const w = 44, h = 36;
+            const w = 44;
+            const h = 36;
             const eb = getEchpochmakButton();
-            return { x: eb.x, y: eb.y - h - 6, w, h };
+            return {
+                x: eb.x,
+                y: eb.y - h - 6,
+                w, h
+            };
         }
         
         // ========== УПРАВЛЕНИЕ ПРИМЕРАМИ ==========
@@ -383,7 +414,10 @@
                 const dy = a.y - rocket.y;
                 const dx = a.x - rocket.x;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < closestDist) { closestDist = dist; closest = a; }
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = a;
+                }
             }
             
             if (closest) closest.isCurrent = true;
@@ -392,7 +426,8 @@
         function spawnNewExample() {
             if (asteroids.length >= 4) return;
             const ex = generateExample();
-            if (!asteroids.some(a => a.isCurrent && a.active)) ex.isCurrent = true;
+            const hasCurrent = asteroids.some(a => a.isCurrent && a.active);
+            if (!hasCurrent) ex.isCurrent = true;
             asteroids.push(ex);
         }
         
@@ -415,33 +450,13 @@
                 if (combo % 5 === 0 && combo > 0) {
                     spawnFloatingText(rocket.x, rocket.y - 40, 'ДӨРЕС!', '#00ff88');
                 }
-                
-                // ===== ЭЧПОЧМАК — каждая серия из 3 =====
-                if (combo > 0 && combo % 3 === 0 && echpochmaks < 5) {
+                if (combo > 0 && combo % 5 === 0 && echpochmaks < 5) {
                     echpochmaks++;
                     spawnFloatingText(rocket.x - 30, rocket.y, '+🥟', '#ffaa00');
                 }
-                
-                // ===== ИМБА ЧАК-ЧАК — серия из 8! =====
-                if (combo > 0 && combo % 8 === 0 && chakchaks < 5) {
+                if (combo > 0 && combo % 20 === 0 && chakchaks < 3) {
                     chakchaks++;
-                    spawnFloatingText(rocket.x + 30, rocket.y, '+🍯 ИМБА!', '#ff6600');
-                    
-                    // Спецэффект для имбы
-                    for (let i = 0; i < 40; i++) {
-                        particles.push({
-                            x: rocket.x, y: rocket.y,
-                            vx: (Math.random() - 0.5) * 10,
-                            vy: (Math.random() - 0.5) * 10,
-                            life: 1, decay: 0.02,
-                            color: '#ff6600',
-                            size: Math.random() * 5 + 3
-                        });
-                    }
-                    
-                    // Кратковременная неуязвимость (1 секунда)
-                    rocket.invincible = true;
-                    rocket.invincibleTimer = 60;
+                    spawnFloatingText(rocket.x + 30, rocket.y, '+🍯', '#ff8800');
                 }
                 
                 current.active = false;
@@ -461,7 +476,10 @@
                 rocket.shake = 8;
                 rocket.targetFlame = rocket.flameNormal / 2;
                 
-                if (lives <= 0) { gameOver(); return; }
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                }
             }
             
             assignNewCurrent();
@@ -484,12 +502,6 @@
                     
                     spawnParticles(target.x, target.y, '#ffaa00', 25);
                     spawnFloatingText(target.x, target.y, '+15 🥟', '#ffaa00');
-                    
-                    // Чак-чак за выстрел тоже может выпасть
-                    if (combo > 0 && combo % 8 === 0 && chakchaks < 5) {
-                        chakchaks++;
-                        spawnFloatingText(rocket.x + 30, rocket.y, '+🍯 ИМБА!', '#ff6600');
-                    }
                     
                     target.active = false;
                     target.isCurrent = false;
@@ -514,44 +526,50 @@
             combo += count;
             if (combo > maxCombo) maxCombo = combo;
             
-            spawnFloatingText(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2, 'ЧӘК-ЧӘК ИМБА!', '#ff6600');
-            
-            // Массовый эффект
-            for (let i = 0; i < 80; i++) {
-                particles.push({
-                    x: Math.random() * DESIGN_WIDTH,
-                    y: Math.random() * DESIGN_HEIGHT,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
-                    life: 1, decay: 0.015,
-                    color: Math.random() > 0.5 ? '#ff8800' : '#ffaa00',
-                    size: Math.random() * 6 + 2
-                });
-            }
-            
-            // Неуязвимость на 2 секунды
-            rocket.invincible = true;
-            rocket.invincibleTimer = 120;
+            spawnFloatingText(DESIGN_WIDTH / 2, DESIGN_HEIGHT / 2, 'ЧӘК-ЧӘК!', '#ff8800');
             
             spawnNewExample();
             assignNewCurrent();
+            
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * DESIGN_WIDTH,
+                    y: Math.random() * DESIGN_HEIGHT,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    life: 1,
+                    decay: 0.02,
+                    color: '#ffaa00',
+                    size: Math.random() * 4 + 2
+                });
+            }
         }
         
-        // ========== КЛИКИ ==========
+        // ========== ОБРАБОТКА КЛИКОВ ==========
         function getDesignCoords(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            return { x: (clientX - rect.left) / scaleX, y: (clientY - rect.top) / scaleY };
+            return {
+                x: (clientX - rect.left) / scaleX,
+                y: (clientY - rect.top) / scaleY
+            };
         }
         
         function handleClick(clientX, clientY) {
             const { x, y } = getDesignCoords(clientX, clientY);
             
-            if (state === STATE.MENU) { startGame(); return; }
-            if (state === STATE.GAMEOVER) {
-                const btn = canvas._gameOverBtn;
-                if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) restartGame();
+            if (state === STATE.MENU) {
+                startGame();
                 return;
             }
+            
+            if (state === STATE.GAMEOVER) {
+                const btn = canvas._gameOverBtn;
+                if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+                    restartGame();
+                }
+                return;
+            }
+            
             if (state !== STATE.PLAYING) return;
             
             const current = asteroids.find(a => a.isCurrent && a.active);
@@ -560,7 +578,8 @@
                 for (let i = 0; i < current.answers.length; i++) {
                     const btn = getButtonRect(i);
                     if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-                        handleAnswer(i); return;
+                        handleAnswer(i);
+                        return;
                     }
                 }
             }
@@ -568,14 +587,16 @@
             if (echpochmaks > 0) {
                 const eb = getEchpochmakButton();
                 if (x >= eb.x && x <= eb.x + eb.w && y >= eb.y && y <= eb.y + eb.h) {
-                    fireAtCurrentExample(); return;
+                    fireAtCurrentExample();
+                    return;
                 }
             }
             
             if (chakchaks > 0) {
                 const cb = getChakchakButton();
                 if (x >= cb.x && x <= cb.x + cb.w && y >= cb.y && y <= cb.y + cb.h) {
-                    activateChakchak(); return;
+                    activateChakchak();
+                    return;
                 }
             }
         }
@@ -583,15 +604,24 @@
         canvas.addEventListener('click', (e) => handleClick(e.clientX, e.clientY));
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (e.touches.length > 0) handleClick(e.touches[0].clientX, e.touches[0].clientY);
+            if (e.touches.length > 0) {
+                handleClick(e.touches[0].clientX, e.touches[0].clientY);
+            }
         });
         
-        // ========== СОСТОЯНИЯ ==========
+        // ========== ИГРОВЫЕ СОСТОЯНИЯ ==========
         function startGame() {
-            score = 0; combo = 0; maxCombo = 0;
-            lives = 3; echpochmaks = 3; chakchaks = 0;
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            lives = 3;
+            echpochmaks = 3;
+            chakchaks = 0;
             speed = 1;
-            asteroids = []; projectiles = []; particles = []; floatingTexts = [];
+            asteroids = [];
+            projectiles = [];
+            particles = [];
+            floatingTexts = [];
             asteroidTimer = 0;
             
             rocket.x = DESIGN_WIDTH / 2;
@@ -599,8 +629,6 @@
             rocket.currentFlame = rocket.flameNormal;
             rocket.targetFlame = rocket.flameNormal;
             rocket.shake = 0;
-            rocket.invincible = false;
-            rocket.invincibleTimer = 0;
             
             initStars();
             initClouds();
@@ -616,32 +644,37 @@
             spawnParticles(rocket.x, rocket.y, '#ff4444', 40);
         }
         
-        function restartGame() { startGame(); }
+        function restartGame() {
+            startGame();
+        }
         
         // ========== ОБНОВЛЕНИЕ ==========
         function update() {
             if (state !== STATE.PLAYING && state !== STATE.GAMEOVER) return;
             
             frameCount++;
-            const eff = speed * gameSpeedMultiplier;
+            const effectiveSpeed = speed * gameSpeedMultiplier;
             
-            // Таймер неуязвимости
-            if (rocket.invincible) {
-                rocket.invincibleTimer--;
-                if (rocket.invincibleTimer <= 0) rocket.invincible = false;
-            }
-            
+            // Звёзды
             for (let s of stars) {
-                s.y += s.speed * eff;
+                s.y += s.speed * effectiveSpeed;
                 s.twinkle += s.twinkleSpeed;
-                if (s.y > DESIGN_HEIGHT + 10) { s.y = -10; s.x = Math.random() * DESIGN_WIDTH; }
+                if (s.y > DESIGN_HEIGHT + 10) {
+                    s.y = -10;
+                    s.x = Math.random() * DESIGN_WIDTH;
+                }
             }
             
+            // Облака
             for (let c of clouds) {
-                c.y += c.speed * eff * 0.3;
-                if (c.y > DESIGN_HEIGHT + 50) { c.y = -50; c.x = Math.random() * DESIGN_WIDTH; }
+                c.y += c.speed * effectiveSpeed * 0.3;
+                if (c.y > DESIGN_HEIGHT + 50) {
+                    c.y = -50;
+                    c.x = Math.random() * DESIGN_WIDTH;
+                }
             }
             
+            // Ракета
             rocket.currentFlame += (rocket.targetFlame - rocket.currentFlame) * 0.2;
             if (rocket.shake > 0) rocket.shake *= 0.8;
             if (rocket.shake < 0.1) rocket.shake = 0;
@@ -656,37 +689,25 @@
                 return;
             }
             
+            // Спавн
             asteroidTimer++;
-            if (asteroidTimer >= ASTEROID_SPAWN_INTERVAL / eff) {
+            if (asteroidTimer >= ASTEROID_SPAWN_INTERVAL / effectiveSpeed) {
                 asteroidTimer = 0;
                 if (asteroids.length < 3) spawnNewExample();
             }
             
+            // Движение астероидов
             for (let i = asteroids.length - 1; i >= 0; i--) {
                 const a = asteroids[i];
                 
                 if (a.active) {
-                    a.y += a.speed * eff;
+                    a.y += a.speed * effectiveSpeed;
                     
                     const dx = a.x - rocket.x;
                     const dy = a.y - rocket.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    // Неуязвимость спасает от столкновения
                     if (dist < a.radius + rocket.width / 2 + 5 && a.hitAnim === 0 && a.missAnim === 0) {
-                        if (rocket.invincible) {
-                            // Отбрасываем астероид!
-                            spawnParticles(a.x, a.y, '#ff8800', 15);
-                            a.active = false;
-                            a.isCurrent = false;
-                            a.hitAnim = 10;
-                            asteroids.splice(i, 1);
-                            score += 5;
-                            spawnFloatingText(a.x, a.y, 'ОТБИТ!', '#ff6600');
-                            assignNewCurrent();
-                            continue;
-                        }
-                        
                         combo = 0;
                         lives--;
                         speed = Math.max(1, speed - 0.5);
@@ -694,12 +715,16 @@
                         spawnParticles(a.x, a.y, '#ff4444', 20);
                         spawnFloatingText(rocket.x, rocket.y, 'БӘРЕЛДЕК!', '#ff4444');
                         
-                        a.active = false; a.isCurrent = false;
+                        a.active = false;
+                        a.isCurrent = false;
                         asteroids.splice(i, 1);
                         rocket.shake = 10;
                         assignNewCurrent();
                         
-                        if (lives <= 0) { gameOver(); return; }
+                        if (lives <= 0) {
+                            gameOver();
+                            return;
+                        }
                         continue;
                     }
                     
@@ -712,10 +737,13 @@
                 } else {
                     if (a.hitAnim > 0) a.hitAnim--;
                     if (a.missAnim > 0) a.missAnim--;
-                    if (a.hitAnim <= 0 && a.missAnim <= 0) asteroids.splice(i, 1);
+                    if (a.hitAnim <= 0 && a.missAnim <= 0) {
+                        asteroids.splice(i, 1);
+                    }
                 }
             }
             
+            // Снаряды
             for (let p of projectiles) {
                 p.progress += p.speed;
                 if (p.progress > 1) p.progress = 1;
@@ -727,15 +755,25 @@
                     });
                 }
             }
+            
             projectiles = projectiles.filter(p => p.progress < 1);
             for (let p of projectiles) {
                 p.trail = p.trail.filter(t => { t.life -= 0.05; return t.life > 0; });
             }
             
-            for (let p of particles) { p.x += p.vx; p.y += p.vy; p.life -= p.decay; }
+            // Частицы
+            for (let p of particles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+            }
             particles = particles.filter(p => p.life > 0);
             
-            for (let t of floatingTexts) { t.y += t.vy; t.life -= t.decay; }
+            // Текст
+            for (let t of floatingTexts) {
+                t.y += t.vy;
+                t.life -= t.decay;
+            }
             floatingTexts = floatingTexts.filter(t => t.life > 0);
         }
         
@@ -743,66 +781,104 @@
         function draw() {
             ctx.clearRect(0, 0, gameWidth, gameHeight);
             
-            const grad = ctx.createLinearGradient(0, 0, 0, DESIGN_HEIGHT);
-            grad.addColorStop(0, '#05051a'); grad.addColorStop(0.5, '#0a0a2e'); grad.addColorStop(1, '#1a1a3e');
-            ctx.fillStyle = grad;
+            // Фон
+            const gradient = ctx.createLinearGradient(0, 0, 0, DESIGN_HEIGHT);
+            gradient.addColorStop(0, '#05051a');
+            gradient.addColorStop(0.5, '#0a0a2e');
+            gradient.addColorStop(1, '#1a1a3e');
+            ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
             
+            // Звёзды
             for (let s of stars) {
                 const alpha = 0.5 + Math.sin(s.twinkle) * 0.4 + 0.1;
-                ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
             }
             
+            // Земля
             const earthY = DESIGN_HEIGHT + 30;
-            const eg = ctx.createRadialGradient(DESIGN_WIDTH / 2, earthY, 10, DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2);
-            eg.addColorStop(0, '#2d5a1e'); eg.addColorStop(0.7, '#1a3a10'); eg.addColorStop(1, '#0a0a1a');
-            ctx.fillStyle = eg;
-            ctx.beginPath(); ctx.arc(DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2, 0, Math.PI); ctx.fill();
+            const earthGrad = ctx.createRadialGradient(DESIGN_WIDTH / 2, earthY, 10, DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2);
+            earthGrad.addColorStop(0, '#2d5a1e');
+            earthGrad.addColorStop(0.7, '#1a3a10');
+            earthGrad.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = earthGrad;
+            ctx.beginPath();
+            ctx.arc(DESIGN_WIDTH / 2, earthY, DESIGN_WIDTH * 1.2, 0, Math.PI);
+            ctx.fill();
             
+            // Облака
             for (let c of clouds) {
-                ctx.fillStyle = 'rgba(255,255,255,0.25)';
-                ctx.beginPath(); ctx.ellipse(c.x, c.y, c.width / 2, 12, 0, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.ellipse(c.x - c.width * 0.25, c.y - 8, c.width * 0.35, 10, 0, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.ellipse(c.x + c.width * 0.25, c.y - 6, c.width * 0.3, 9, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.width / 2, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x - c.width * 0.25, c.y - 8, c.width * 0.35, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(c.x + c.width * 0.25, c.y - 6, c.width * 0.3, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
             }
             
+            // Астероиды
             for (let a of asteroids) {
                 if (!a.active && a.hitAnim <= 0 && a.missAnim <= 0) continue;
                 
                 let alpha = 1, scale = 1;
                 if (a.hitAnim > 0) { alpha = a.hitAnim / 15; scale = 1 + (15 - a.hitAnim) * 0.1; }
-                if (a.missAnim > 0) alpha = a.missAnim / 15;
+                if (a.missAnim > 0) { alpha = a.missAnim / 15; }
                 
-                ctx.save(); ctx.globalAlpha = alpha; ctx.translate(a.x, a.y); ctx.scale(scale, scale);
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(a.x, a.y);
+                ctx.scale(scale, scale);
                 
-                ctx.fillStyle = '#5a5a6e'; ctx.strokeStyle = '#7a7a8e'; ctx.lineWidth = 2;
+                ctx.fillStyle = '#5a5a6e';
+                ctx.strokeStyle = '#7a7a8e';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
+                const r = a.radius;
                 for (let i = 0; i < 8; i++) {
                     const angle = (i / 8) * Math.PI * 2;
-                    const rr = a.radius + Math.sin(i * 1.7 + frameCount * 0.05) * 4;
-                    const sx = Math.cos(angle) * rr, sy = Math.sin(angle) * rr;
+                    const rr = r + Math.sin(i * 1.7 + frameCount * 0.05) * 4;
+                    const sx = Math.cos(angle) * rr;
+                    const sy = Math.sin(angle) * rr;
                     i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
                 }
-                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
                 
                 ctx.fillStyle = '#4a4a5e';
                 ctx.beginPath(); ctx.arc(-7, -4, 5, 0, Math.PI * 2); ctx.fill();
                 ctx.beginPath(); ctx.arc(4, 7, 3, 0, Math.PI * 2); ctx.fill();
                 
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 ctx.fillText(a.text, 0, 0);
                 
+                // Ответы-спутники
                 if (a.isCurrent && a.active) {
                     const orbitR = a.radius + 20;
                     ctx.font = 'bold 10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
                     for (let i = 0; i < a.answers.length; i++) {
                         const angle = (i / a.answers.length) * Math.PI * 2 - Math.PI / 2 + frameCount * 0.02;
-                        const sx = Math.cos(angle) * orbitR, sy = Math.sin(angle) * orbitR;
+                        const sx = Math.cos(angle) * orbitR;
+                        const sy = Math.sin(angle) * orbitR;
                         
-                        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                         ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI * 2); ctx.fill();
-                        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        ctx.lineWidth = 1; ctx.stroke();
+                        
                         ctx.fillStyle = '#fff';
                         ctx.fillText(a.answers[i], sx, sy);
                     }
@@ -811,26 +887,40 @@
                 ctx.restore();
             }
             
+            // Снаряды
             for (let p of projectiles) {
                 const cx = p.x + (p.targetX - p.x) * p.progress;
                 const cy = p.y + (p.targetY - p.y) * p.progress;
                 
                 for (let t of p.trail) {
-                    ctx.fillStyle = `rgba(255,180,50,${t.life})`;
+                    ctx.fillStyle = `rgba(255, 180, 50, ${t.life})`;
                     ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI * 2); ctx.fill();
                 }
                 
-                ctx.save(); ctx.translate(cx, cy);
+                ctx.save();
+                ctx.translate(cx, cy);
                 ctx.rotate(Math.atan2(p.targetY - p.y, p.targetX - p.x) + Math.PI / 2);
-                ctx.fillStyle = '#ffaa00'; ctx.strokeStyle = '#cc8800'; ctx.lineWidth = 1.5;
+                
+                ctx.fillStyle = '#ffaa00';
+                ctx.strokeStyle = '#cc8800';
+                ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                ctx.moveTo(0, -p.size); ctx.lineTo(-p.size * 0.7, p.size * 0.6); ctx.lineTo(p.size * 0.7, p.size * 0.6);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.strokeStyle = '#885500'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(-2, -1); ctx.lineTo(0, p.size * 0.3); ctx.lineTo(2, -1); ctx.stroke();
+                ctx.moveTo(0, -p.size);
+                ctx.lineTo(-p.size * 0.7, p.size * 0.6);
+                ctx.lineTo(p.size * 0.7, p.size * 0.6);
+                ctx.closePath();
+                ctx.fill(); ctx.stroke();
+                
+                ctx.strokeStyle = '#885500';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-2, -1); ctx.lineTo(0, p.size * 0.3); ctx.lineTo(2, -1);
+                ctx.stroke();
+                
                 ctx.restore();
             }
             
+            // Частицы
             for (let p of particles) {
                 ctx.globalAlpha = p.life;
                 ctx.fillStyle = p.color;
@@ -838,16 +928,20 @@
             }
             ctx.globalAlpha = 1;
             
+            // Ракета
             if (state !== STATE.GAMEOVER || rocket.y < DESIGN_HEIGHT + 100) drawRocket();
             
+            // Плавающий текст
             for (let t of floatingTexts) {
                 ctx.globalAlpha = t.life;
                 ctx.fillStyle = t.color;
-                ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center';
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
                 ctx.fillText(t.text, t.x, t.y);
             }
             ctx.globalAlpha = 1;
             
+            // HUD и меню
             drawHUD();
             if (state === STATE.MENU) drawMenu();
             if (state === STATE.GAMEOVER) drawGameOver();
@@ -855,27 +949,23 @@
         
         function drawRocket() {
             const rx = rocket.x, ry = rocket.y;
-            ctx.save(); ctx.translate(rx, ry);
+            ctx.save();
+            ctx.translate(rx, ry);
             
-            // Неуязвимость — свечение
-            if (rocket.invincible) {
-                const glowAlpha = 0.3 + Math.sin(frameCount * 0.2) * 0.2;
-                ctx.shadowColor = '#ff6600';
-                ctx.shadowBlur = 20;
-                ctx.globalAlpha = 1 + glowAlpha;
-            }
-            
-            const fh = rocket.currentFlame + Math.sin(frameCount * 0.3) * 5;
-            if (fh > 2) {
-                const fg = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + fh);
-                fg.addColorStop(0, '#ff4400'); fg.addColorStop(0.3, '#ff6600');
-                fg.addColorStop(0.6, '#ffaa00'); fg.addColorStop(1, 'rgba(255,200,50,0)');
+            const flameH = rocket.currentFlame + Math.sin(frameCount * 0.3) * 5;
+            if (flameH > 2) {
+                const fg = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + flameH);
+                fg.addColorStop(0, '#ff4400');
+                fg.addColorStop(0.3, '#ff6600');
+                fg.addColorStop(0.6, '#ffaa00');
+                fg.addColorStop(1, 'rgba(255, 200, 50, 0)');
                 ctx.fillStyle = fg;
                 ctx.beginPath();
-                const fw = rocket.width * 0.4, wb = Math.sin(frameCount * 0.5) * 3;
+                const fw = rocket.width * 0.4;
+                const wb = Math.sin(frameCount * 0.5) * 3;
                 ctx.moveTo(-fw, rocket.height / 2);
-                ctx.quadraticCurveTo(-fw + wb, rocket.height / 2 + fh * 0.6, wb * 0.5, rocket.height / 2 + fh);
-                ctx.quadraticCurveTo(fw + wb * 0.5, rocket.height / 2 + fh * 0.6, fw, rocket.height / 2);
+                ctx.quadraticCurveTo(-fw + wb, rocket.height / 2 + flameH * 0.6, wb * 0.5, rocket.height / 2 + flameH);
+                ctx.quadraticCurveTo(fw + wb * 0.5, rocket.height / 2 + flameH * 0.6, fw, rocket.height / 2);
                 ctx.closePath(); ctx.fill();
             }
             
@@ -920,6 +1010,7 @@
         }
         
         function drawHUD() {
+            // Панель
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.fillRect(0, 0, DESIGN_WIDTH, 42);
             
@@ -931,25 +1022,11 @@
                 ctx.fillText(`x${combo}`, DESIGN_WIDTH / 2, 28);
             }
             
-            // Индикатор неуязвимости
-            if (rocket.invincible) {
-                ctx.fillStyle = '#ff6600'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
-                ctx.fillText('ИМБА!', DESIGN_WIDTH / 2, 15);
-            }
-            
             ctx.textAlign = 'right'; ctx.font = '18px Arial';
-            let hearts = '';
-            for (let i = 0; i < lives; i++) hearts += '❤️';
-            for (let i = lives; i < 3; i++) hearts += '🖤';
+            let hearts = ''; for (let i = 0; i < lives; i++) hearts += '❤️'; for (let i = lives; i < 3; i++) hearts += '🖤';
             ctx.fillText(hearts, DESIGN_WIDTH - 12, 28);
             
-            // Прогресс до чак-чака
-            const nextChak = 8 - (combo % 8);
-            if (combo > 0 && nextChak < 8 && chakchaks < 5) {
-                ctx.fillStyle = 'rgba(255,140,0,0.6)'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
-                ctx.fillText(`🍯 через ${nextChak}`, DESIGN_WIDTH / 2 + 40, 15);
-            }
-            
+            // Кнопки ответов
             const current = asteroids.find(a => a.isCurrent && a.active);
             if (state === STATE.PLAYING && current && current.answers.length > 0) {
                 for (let i = 0; i < current.answers.length; i++) {
@@ -965,6 +1042,7 @@
                 }
             }
             
+            // Эчпочмак
             if (echpochmaks > 0 && state === STATE.PLAYING) {
                 const eb = getEchpochmakButton();
                 ctx.fillStyle = 'rgba(255,150,30,0.4)'; ctx.strokeStyle = 'rgba(255,180,60,0.6)'; ctx.lineWidth = 2;
@@ -973,15 +1051,12 @@
                 ctx.fillText(`🥟×${echpochmaks}`, eb.x + eb.w / 2, eb.y + eb.h / 2);
             }
             
+            // Чак-чак
             if (chakchaks > 0 && state === STATE.PLAYING) {
                 const cb = getChakchakButton();
-                ctx.fillStyle = 'rgba(255,140,0,0.5)'; ctx.strokeStyle = 'rgba(255,200,60,0.9)'; ctx.lineWidth = 2;
+                ctx.fillStyle = 'rgba(255,140,0,0.4)'; ctx.strokeStyle = 'rgba(255,180,30,0.7)'; ctx.lineWidth = 2;
                 ctx.beginPath(); roundRect(ctx, cb.x, cb.y, cb.w, cb.h, 8); ctx.fill(); ctx.stroke();
-                
-                // Пульсация кнопки чак-чака
-                const chakPulse = Math.sin(frameCount * 0.08) * 0.2 + 0.8;
-                ctx.fillStyle = `rgba(255, 255, 255, ${chakPulse})`;
-                ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff'; ctx.font = '14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(`🍯×${chakchaks}`, cb.x + cb.w / 2, cb.y + cb.h / 2);
             }
         }
@@ -1000,22 +1075,17 @@
             ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
             
             ctx.fillStyle = '#fff'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('САН-РАКЕТА', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.26);
+            ctx.fillText('САН-РАКЕТА', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.28);
             ctx.fillStyle = '#ffaa00'; ctx.font = '16px Arial';
-            ctx.fillText('Тапкырлау', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.26 + 30);
+            ctx.fillText('Тапкырлау', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.28 + 30);
             
             ctx.fillStyle = '#ccc'; ctx.font = '13px Arial';
-            ctx.fillText('Решай примеры — лети к звёздам!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.38);
-            ctx.fillText('🥟 Эчпочмак — каждая серия из 3', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.43);
-            
-            ctx.fillStyle = '#ff8800'; ctx.font = 'bold 13px Arial';
-            ctx.fillText('🍯 ЧАК-ЧАК ИМБА — серия из 8!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.48);
-            
-            ctx.fillStyle = '#ff6600'; ctx.font = '11px Arial';
-            ctx.fillText('+ неуязвимость на время', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.52);
+            ctx.fillText('Решай примеры — лети к звёздам!', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.40);
+            ctx.fillText('🥟 Эчпочмак — стрельба', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.45);
+            ctx.fillText('🍯 Чак-чак — ульта', DESIGN_WIDTH / 2, DESIGN_HEIGHT * 0.49);
             
             const bw = 180, bh = 54;
-            const bx = DESIGN_WIDTH / 2 - bw / 2, by = DESIGN_HEIGHT * 0.60;
+            const bx = DESIGN_WIDTH / 2 - bw / 2, by = DESIGN_HEIGHT * 0.58;
             const pulse = Math.sin(frameCount * 0.05) * 0.15 + 0.85;
             ctx.fillStyle = `rgba(255,140,0,${pulse})`; ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
             ctx.beginPath(); roundRect(ctx, bx, by, bw, bh, 15); ctx.fill(); ctx.stroke();
@@ -1044,15 +1114,17 @@
         }
         
         // ========== ЦИКЛ ==========
-        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
         
         function init() {
             rocket.x = DESIGN_WIDTH / 2;
             rocket.y = DESIGN_HEIGHT * 0.5;
             rocket.currentFlame = rocket.flameNormal;
             rocket.targetFlame = rocket.flameNormal;
-            rocket.invincible = false;
-            rocket.invincibleTimer = 0;
             initStars();
             initClouds();
             state = STATE.MENU;
@@ -1061,10 +1133,10 @@
         init();
         gameLoop();
         
-        console.log('🚀 Сан-Ракета v3 — ИМБА ЧАК-ЧАК!');
-        console.log('🍯 Чак-чак: серия из 8 → +неуязвимость');
-        console.log('🥟 Эчпочмак: серия из 3');
-        console.log('🛡️ Неуязвимость: астероиды отлетают сами');
+        console.log('🚀 Сан-Ракета v2 — Pixel Perfect Mobile');
+        console.log('🎮 Ползунок скорости внизу');
+        console.log('🥟 Эчпочмак — стрельба');
+        console.log('🍯 Чак-чак — ульта');
     </script>
 </body>
 </html>
