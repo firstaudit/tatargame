@@ -2,588 +2,1321 @@
 <html lang="tt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Сан-Ракета — Тест звуков</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Сан-Ракета — Тапкырлау</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             background: #0a0a1a;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .panel {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            max-width: 500px;
-            justify-content: center;
-        }
-        button {
-            padding: 14px 20px;
-            font-size: 16px;
-            border: 2px solid #444;
-            border-radius: 12px;
-            background: #1a1a3e;
-            color: #fff;
-            cursor: pointer;
+            font-family: 'Arial', sans-serif;
             touch-action: manipulation;
-            min-width: 140px;
-            transition: all 0.1s;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
-        button:active {
-            background: #2a2a5e;
-            transform: scale(0.96);
+
+        #gameContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
         }
-        button.gold {
-            border-color: #ffaa00;
-            color: #ffaa00;
-        }
-        h2 {
+
+        canvas {
+            display: block;
             width: 100%;
-            text-align: center;
-            margin: 10px 0 5px;
-            color: #aaa;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        .status {
-            width: 100%;
-            text-align: center;
-            padding: 10px;
-            color: #888;
-            font-size: 13px;
+            height: 100%;
         }
     </style>
 </head>
 <body>
-    <div class="panel">
-        <h2>🎮 Интерфейс</h2>
-        <button onclick="playCorrect()">✅ Правильно (Дөрес!)</button>
-        <button onclick="playWrong()">❌ Ошибка (Хата!)</button>
-        <button onclick="playCombo()">🔥 Комбо x5</button>
-        <button onclick="playComboUlt()">💎 Комбо x15</button>
-        <button onclick="playNewOrbit()">🪐 Новая орбита</button>
-        <button onclick="playGameOver()">💀 Game Over</button>
-
-        <h2>🚀 Ракета</h2>
-        <button onclick="playThrust()">🔥 Двигатель (loop)</button>
-        <button onclick="stopThrust()">🔇 Стоп двигатель</button>
-        <button onclick="playBoost()">⚡ Ускорение</button>
-        <button onclick="playHit()">💥 Столкновение</button>
-
-        <h2>🥟 Оружие</h2>
-        <button onclick="playShoot()">🥟 Выстрел эчпочмак</button>
-        <button onclick="playHitEchp()">🎯 Попадание</button>
-        <button class="gold" onclick="playChakChak()">🍯 Чак-чак (ульта)</button>
-
-        <h2>🎵 Музыка</h2>
-        <button onclick="playMenuMusic()">🌙 Меню (lofi)</button>
-        <button onclick="playPlanetMusic()">🪐 Планета 1 (бодрое)</button>
-        <button onclick="stopMusic()">🔇 Стоп музыка</button>
-
-        <h2>🌌 Атмосфера</h2>
-        <button onclick="playStarDing()">⭐ Звезда</button>
-        <button onclick="playAsteroidPass()">🪨 Пролёт астероида</button>
-        <button onclick="playWarp()">✨ Переход</button>
-
-        <div class="status" id="status">Готов к запуску 🚀</div>
+    <div id="gameContainer">
+        <canvas id="game"></canvas>
     </div>
 
     <script>
-        // ========== ЗВУКОВОЙ ДВИЖОК (Web Audio API) ==========
-        let audioCtx = null;
-        let thrustOsc = null;
-        let thrustGain = null;
-        let musicNodes = [];
+        // ========== САН-РАКЕТА v3.1 — PIXEL PERFECT ==========
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('gameContainer');
 
-        function getCtx() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
+
+        // ========== СОСТОЯНИЯ ==========
+        const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover' };
+        let state = STATE.MENU;
+        let gameOverTimer = 0;
+
+        // ========== СКОРОСТЬ ==========
+        const SPEED_MODES = {
+            SLOW: { name: 'Әкрен', multiplier: 0.6, color: '#88ff88' },
+            NORMAL: { name: 'Уртача', multiplier: 1, color: '#ffff88' },
+            FAST: { name: 'Тиз', multiplier: 1.5, color: '#ff8888' }
+        };
+        let currentSpeedMode = SPEED_MODES.NORMAL;
+        let baseSpeed = 1;
+
+        // ========== ИГРОВЫЕ ПЕРЕМЕННЫЕ ==========
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let lives = 3;
+        let echpochmaks = 3;
+        let chakchaks = 0;
+        let speed = 1;
+        let frameCount = 0;
+        let screenShake = 0;
+        let goldenOverlay = 0;
+        let nextComboEchpochmak = 5;
+        let nextComboChakchak = 15;
+
+        // ========== ЧАК-ЧАК УЛЬТА ==========
+        let chakchakUltActive = false;
+        let chakchakUltTimer = 0;
+        const CHAKCHAK_DURATION = 180;
+        let chakchakParticles = [];
+
+        // ========== РАКЕТА ==========
+        const rocket = {
+            x: 0, y: 0,
+            width: 24, height: 48,
+            flameNormal: 20, flameBoost: 40,
+            currentFlame: 20, targetFlame: 20,
+            shake: 0, golden: 0
+        };
+
+        // ========== ФОН ==========
+        let stars = [];
+        const STAR_COUNT = 80;
+
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < STAR_COUNT; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2.5 + 0.5,
+                    speed: Math.random() * 1.5 + 0.3,
+                    twinkle: Math.random() * Math.PI * 2,
+                    twinkleSpeed: Math.random() * 0.03 + 0.01
+                });
             }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+        }
+
+        // ========== ОБЛАКА ==========
+        let clouds = [];
+        const CLOUD_COUNT = 8;
+
+        function initClouds() {
+            clouds = [];
+            for (let i = 0; i < CLOUD_COUNT; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height - 80 - Math.random() * 60,
+                    width: Math.random() * 60 + 30,
+                    speed: Math.random() * 0.5 + 0.2
+                });
             }
-            return audioCtx;
         }
 
-        function status(msg) {
-            document.getElementById('status').textContent = msg;
+        // ========== АСТЕРОИДЫ ==========
+        let asteroids = [];
+        let asteroidTimer = 0;
+        let currentExample = null;
+        let answerButtons = [];
+
+        function getAsteroidSpawnInterval() {
+            return Math.max(30, Math.floor(90 / speed));
         }
 
-        // ========== ПОМОЩНИКИ ==========
-        function playTone(freq, duration, type = 'square', volume = 0.2, detune = 0) {
-            const ctx = getCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
+        function generateExample() {
+            const a = Math.floor(Math.random() * 9) + 2;
+            const b = Math.floor(Math.random() * 9) + 2;
+            const correctAnswer = a * b;
+            const wrongAnswers = new Set([correctAnswer]);
 
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, ctx.currentTime);
-            if (detune) osc.detune.setValueAtTime(detune, ctx.currentTime);
-
-            gain.gain.setValueAtTime(volume, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + duration);
-        }
-
-        function playNoise(duration, volume = 0.15, highpass = 0) {
-            const ctx = getCtx();
-            const bufferSize = ctx.sampleRate * duration;
-            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
+            while (wrongAnswers.size < 4) {
+                let wrong;
+                const r = Math.random();
+                if (r < 0.4) {
+                    wrong = correctAnswer + Math.floor(Math.random() * 10) - 5;
+                } else if (r < 0.7) {
+                    wrong = (a - 1) * b || (a + 1) * b || a * (b + 1) || a * (b - 1);
+                } else {
+                    wrong = Math.floor(Math.random() * 81) + 4;
+                }
+                if (wrong !== correctAnswer && wrong > 0 && wrong < 100) {
+                    wrongAnswers.add(wrong);
+                }
             }
 
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
+            const answers = [...wrongAnswers];
+            for (let i = answers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [answers[i], answers[j]] = [answers[j], answers[i]];
+            }
 
-            const gain = ctx.createGain();
-            const filter = ctx.createBiquadFilter();
-
-            source.connect(filter);
-            filter.connect(gain);
-            gain.connect(ctx.destination);
-
-            filter.type = 'highpass';
-            filter.frequency.setValueAtTime(highpass || 2000, ctx.currentTime);
-
-            gain.gain.setValueAtTime(volume, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-            source.start(ctx.currentTime);
-            source.stop(ctx.currentTime + duration);
+            return {
+                id: Math.random(),
+                a, b,
+                text: `${a} × ${b}`,
+                correct: correctAnswer,
+                answers: answers,
+                x: Math.random() * (canvas.width - 120) + 60,
+                y: -50,
+                radius: 32,
+                speed: 1.2 + speed * 0.3,
+                active: true,
+                hitAnim: 0,
+                missAnim: 0
+            };
         }
 
-        function playSequence(notes, baseTime, type = 'square', volume = 0.2) {
-            const ctx = getCtx();
-            notes.forEach(([freq, dur, delay]) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, ctx.currentTime + baseTime + delay);
-                gain.gain.setValueAtTime(volume, ctx.currentTime + baseTime + delay);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + baseTime + delay + dur);
-                osc.start(ctx.currentTime + baseTime + delay);
-                osc.stop(ctx.currentTime + baseTime + delay + dur + 0.05);
+        function setCurrentExample(example) {
+            currentExample = example;
+            if (example && example.active) {
+                answerButtons = [...example.answers];
+            } else {
+                answerButtons = [];
+            }
+        }
+
+        function findActiveExample() {
+            for (let a of asteroids) {
+                if (a.active && a.hitAnim === 0 && a.missAnim === 0) {
+                    return a;
+                }
+            }
+            return null;
+        }
+
+        function refreshCurrentExample() {
+            if (currentExample && currentExample.active && asteroids.includes(currentExample)) {
+                return;
+            }
+            const next = findActiveExample();
+            if (next) {
+                setCurrentExample(next);
+            } else {
+                currentExample = null;
+                answerButtons = [];
+            }
+        }
+
+        function spawnNewExample() {
+            if (asteroids.length >= 4) return;
+            const ex = generateExample();
+            asteroids.push(ex);
+            if (!currentExample || !currentExample.active) {
+                setCurrentExample(ex);
+            }
+        }
+
+        // ========== СНАРЯДЫ ==========
+        let projectiles = [];
+
+        function fireEchpochmak(targetX, targetY, targetId) {
+            projectiles.push({
+                x: rocket.x,
+                y: rocket.y - rocket.height / 2,
+                targetX, targetY,
+                targetId,
+                progress: 0,
+                speed: 0.08,
+                size: 12,
+                trail: []
             });
         }
 
-        // ========== ИНТЕРФЕЙС ==========
-        function playCorrect() {
-            status('ДӨРЕС!');
-            // Три восходящие ноты (курай = square wave)
-            const notes = [
-                [523, 0.12, 0],     // До
-                [659, 0.12, 0.1],   // Ми
-                [784, 0.2, 0.2]     // Соль
-            ];
-            playSequence(notes, 0, 'square', 0.2);
-            // Лёгкий колокольчик
-            setTimeout(() => playTone(1047, 0.3, 'sine', 0.1), 350);
-        }
+        // ========== ЧАСТИЦЫ ==========
+        let particles = [];
 
-        function playWrong() {
-            status('ХАТА!');
-            // Две нисходящие ноты (низкая гармонь = sawtooth)
-            const notes = [
-                [200, 0.2, 0],
-                [150, 0.3, 0.15]
-            ];
-            playSequence(notes, 0, 'sawtooth', 0.15);
-            // Глухой удар
-            setTimeout(() => playTone(60, 0.4, 'sine', 0.3), 50);
-        }
-
-        function playCombo() {
-            status('Комбо x5!');
-            // Варган: резкий щелчок + гул
-            playTone(800, 0.05, 'square', 0.3, 50);
-            playTone(200, 0.15, 'triangle', 0.15);
-            setTimeout(() => playTone(1200, 0.08, 'square', 0.2, 100), 60);
-        }
-
-        function playComboUlt() {
-            status('Комбо x15! ЧӘК-ЧӘК!');
-            // Трель курая + колокольчик
-            for (let i = 0; i < 6; i++) {
-                setTimeout(() => playTone(600 + i * 100, 0.08, 'square', 0.15), i * 40);
-            }
-            setTimeout(() => playTone(1200, 0.5, 'sine', 0.2), 250);
-            setTimeout(() => playTone(1600, 0.6, 'sine', 0.15), 350);
-        }
-
-        function playNewOrbit() {
-            status('Новая орбита!');
-            // Фанфара: курай + гармонь
-            const notes = [
-                [523, 0.15, 0], [659, 0.15, 0.15], [784, 0.15, 0.3],
-                [1047, 0.4, 0.5]
-            ];
-            playSequence(notes, 0, 'square', 0.2);
-            // Гармонь аккорд
-            setTimeout(() => {
-                playTone(262, 0.5, 'sawtooth', 0.1);
-                playTone(330, 0.5, 'sawtooth', 0.1);
-                playTone(392, 0.5, 'sawtooth', 0.1);
-            }, 600);
-        }
-
-        function playGameOver() {
-            status('Уен бетте...');
-            // Печальный курай: три ноты вниз
-            const notes = [
-                [392, 0.3, 0],
-                [330, 0.3, 0.3],
-                [262, 0.5, 0.6]
-            ];
-            playSequence(notes, 0, 'square', 0.15);
-            setTimeout(() => playTone(131, 1, 'sine', 0.1), 1000);
-        }
-
-        // ========== РАКЕТА ==========
-        function playThrust() {
-            status('Двигатель работает...');
-            const ctx = getCtx();
-            stopThrust();
-
-            thrustOsc = ctx.createOscillator();
-            const noiseGain = ctx.createGain();
-            thrustGain = ctx.createGain();
-
-            // Основной гул (sawtooth + LFO)
-            const lfo = ctx.createOscillator();
-            const lfoGain = ctx.createGain();
-            lfo.frequency.setValueAtTime(3, ctx.currentTime);
-            lfoGain.gain.setValueAtTime(15, ctx.currentTime);
-            lfo.connect(lfoGain);
-            lfoGain.connect(thrustOsc.frequency);
-            lfo.start();
-
-            thrustOsc.type = 'sawtooth';
-            thrustOsc.frequency.setValueAtTime(80, ctx.currentTime);
-
-            // Шум (варган-подобный)
-            const noise = ctx.createOscillator();
-            noise.type = 'square';
-            noise.frequency.setValueAtTime(120, ctx.currentTime);
-
-            thrustOsc.connect(thrustGain);
-            noise.connect(thrustGain);
-            thrustGain.connect(ctx.destination);
-
-            thrustGain.gain.setValueAtTime(0.08, ctx.currentTime);
-
-            thrustOsc.start();
-            noise.start();
-        }
-
-        function stopThrust() {
-            if (thrustOsc && thrustGain) {
-                thrustGain.gain.exponentialRampToValueAtTime(0.001, getCtx().currentTime + 0.3);
-                setTimeout(() => {
-                    try { thrustOsc.stop(); } catch(e) {}
-                    thrustOsc = null;
-                    thrustGain = null;
-                }, 350);
-            }
-            status('Двигатель заглушен');
-        }
-
-        function playBoost() {
-            status('Ускорение!');
-            const ctx = getCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.4);
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
-            // Гармонь аккорд
-            setTimeout(() => playTone(200, 0.3, 'sawtooth', 0.1), 100);
-        }
-
-        function playHit() {
-            status('Столкновение!');
-            playNoise(0.3, 0.25, 500);
-            playTone(50, 0.4, 'sine', 0.4);
-            playTone(30, 0.5, 'triangle', 0.3);
-        }
-
-        // ========== ОРУЖИЕ ==========
-        function playShoot() {
-            status('Эчпочмак летит!');
-            // 8-bit выстрел
-            const ctx = getCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.15);
-            playNoise(0.08, 0.1, 4000);
-        }
-
-        function playHitEchp() {
-            status('Попадание!');
-            playNoise(0.1, 0.15, 3000);
-            playTone(300, 0.1, 'square', 0.2);
-            // Крошки (короткие щелчки)
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => playTone(2000 + i * 300, 0.03, 'square', 0.08), i * 15);
+        function spawnParticles(x, y, color, count = 15, spread = 4, gravity = false) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = Math.random() * spread + 2;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 1,
+                    decay: Math.random() * 0.025 + 0.015,
+                    color,
+                    size: Math.random() * 3 + 1,
+                    gravity
+                });
             }
         }
 
-        function playChakChak() {
-            status('ЧӘК-ЧӘК! ЗОЛОТО!');
-            const ctx = getCtx();
+        function spawnGoldenExplosion(x, y, count = 30) {
+            const colors = ['#FFD700', '#FFA500', '#FF8C00', '#FFF8DC', '#FFE4B5'];
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = Math.random() * 7 + 3;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 1,
+                    decay: Math.random() * 0.012 + 0.006,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: Math.random() * 5 + 2,
+                    gravity: true
+                });
+            }
+        }
 
-            // Вжух (sweep up)
-            const sweep = ctx.createOscillator();
-            const sweepGain = ctx.createGain();
-            sweep.connect(sweepGain);
-            sweepGain.connect(ctx.destination);
-            sweep.type = 'sawtooth';
-            sweep.frequency.setValueAtTime(150, ctx.currentTime);
-            sweep.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.6);
-            sweepGain.gain.setValueAtTime(0.2, ctx.currentTime);
-            sweepGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
-            sweep.start(ctx.currentTime);
-            sweep.stop(ctx.currentTime + 0.7);
+        // ========== ТЕКСТ ==========
+        let floatingTexts = [];
 
-            // Золотой перезвон (shimmer)
-            for (let i = 0; i < 12; i++) {
-                setTimeout(() => {
-                    playTone(800 + Math.random() * 800, 0.3 + Math.random() * 0.5, 'sine', 0.08);
-                }, i * 80);
+        function spawnFloatingText(x, y, text, color = '#fff', size = 18) {
+            floatingTexts.push({
+                x, y, text,
+                life: 1,
+                decay: 0.012,
+                color,
+                vy: -2.5,
+                size
+            });
+        }
+
+        // ========== ГЕОМЕТРИЯ КНОПОК ==========
+        const BUTTON_H = 50;
+        const BUTTON_GAP = 8;
+        const BUTTON_COLS = 2;
+
+        function getButtonRect(index) {
+            const totalWidth = Math.min(canvas.width * 0.9, 380);
+            const btnWidth = (totalWidth - BUTTON_GAP * (BUTTON_COLS - 1)) / BUTTON_COLS;
+            const totalHeight = BUTTON_H * 2 + BUTTON_GAP;
+            const startX = (canvas.width - totalWidth) / 2;
+            const bottomMargin = Math.max(12, Math.floor(canvas.height * 0.02));
+            const startY = canvas.height - totalHeight - bottomMargin;
+
+            const col = index % BUTTON_COLS;
+            const row = Math.floor(index / BUTTON_COLS);
+
+            return {
+                x: startX + col * (btnWidth + BUTTON_GAP),
+                y: startY + row * (BUTTON_H + BUTTON_GAP),
+                w: btnWidth,
+                h: BUTTON_H
+            };
+        }
+
+        function getEchpochmakButton() {
+            const w = 44;
+            const h = 38;
+            const btn0 = getButtonRect(0);
+            return {
+                x: canvas.width - w - 12,
+                y: btn0.y - h - 10,
+                w: w,
+                h: h
+            };
+        }
+
+        function getChakchakButton() {
+            const w = 44;
+            const h = 38;
+            const eb = getEchpochmakButton();
+            return {
+                x: eb.x,
+                y: eb.y - h - 6,
+                w: w,
+                h: h
+            };
+        }
+
+        function getSpeedButton() {
+            const w = 56;
+            const h = 28;
+            const topHUD = 50;
+            return {
+                x: 8,
+                y: topHUD + 6,
+                w: w,
+                h: h
+            };
+        }
+
+        // ========== МЕНЮ КНОПКИ ==========
+        function getSpeedButtons() {
+            const modes = Object.values(SPEED_MODES);
+            const gap = 8;
+            const btnW = Math.min(85, Math.floor((canvas.width - 40) / 3));
+            const btnH = 38;
+            const totalW = btnW * 3 + gap * 2;
+            const startX = Math.floor((canvas.width - totalW) / 2);
+            const btnY = Math.floor(canvas.height * 0.50);
+            return modes.map((mode, i) => ({
+                x: startX + i * (btnW + gap),
+                y: btnY,
+                w: btnW,
+                h: btnH,
+                mode
+            }));
+        }
+
+        function getStartButton() {
+            const btnW = Math.min(200, Math.floor(canvas.width * 0.55));
+            const btnH = 56;
+            return {
+                x: Math.floor((canvas.width - btnW) / 2),
+                y: Math.floor(canvas.height * 0.64),
+                w: btnW,
+                h: btnH
+            };
+        }
+
+        // ========== ДЕЙСТВИЯ ==========
+        function destroyAsteroid(asteroid, bonus, color, isGolden = false) {
+            if (!asteroid || !asteroid.active) return;
+            asteroid.active = false;
+            asteroid.hitAnim = 15;
+
+            if (isGolden) {
+                spawnGoldenExplosion(asteroid.x, asteroid.y, 20);
+            } else {
+                spawnParticles(asteroid.x, asteroid.y, color, 20);
+            }
+            spawnFloatingText(asteroid.x, asteroid.y, `+${bonus}`, color);
+            score += bonus;
+
+            if (currentExample === asteroid) {
+                currentExample = null;
             }
 
-            // Глубокий гул (медовый)
-            setTimeout(() => {
-                const hum = ctx.createOscillator();
-                const humGain = ctx.createGain();
-                hum.connect(humGain);
-                humGain.connect(ctx.destination);
-                hum.type = 'sine';
-                hum.frequency.setValueAtTime(60, ctx.currentTime);
-                humGain.gain.setValueAtTime(0.15, ctx.currentTime);
-                humGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
-                hum.start(ctx.currentTime);
-                hum.stop(ctx.currentTime + 2);
-            }, 400);
+            const idx = asteroids.indexOf(asteroid);
+            if (idx > -1) asteroids.splice(idx, 1);
         }
 
-        // ========== МУЗЫКА ==========
-        // ========== МУЗЫКА (МИНИМАЛИСТИЧНАЯ) ==========
-let musicInterval = null;
+        function onCorrectAnswer(asteroid) {
+            combo++;
+            if (combo > maxCombo) maxCombo = combo;
 
-function stopAllMusic() {
-    if (musicInterval) {
-        clearInterval(musicInterval);
-        musicInterval = null;
-    }
-    musicNodes.forEach(n => {
-        try { n.stop(); } catch(e) {}
-    });
-    musicNodes = [];
-}
+            let bonus = combo >= 15 ? 50 : combo >= 10 ? 30 : combo >= 5 ? 20 : 10;
+            if (chakchakUltActive) bonus = Math.floor(bonus * 1.5);
 
-function playMenuMusic() {
-    status('🎵 Меню: lofi пульс');
-    stopAllMusic();
-    const ctx = getCtx();
-    const bpm = 60; // очень медленно
-    const beat = 60 / bpm;
+            speed = baseSpeed + Math.floor(combo / 3) * 0.2;
+            if (speed > baseSpeed * 4) speed = baseSpeed * 4;
 
-    // Только бас-пульс: глухой удар раз в 2 секунды
-    const bassNotes = [55, 55, 55, 49, 55, 55, 55, 44]; // 4 такта
-    let step = 0;
+            destroyAsteroid(asteroid, bonus, chakchakUltActive ? '#FFD700' : '#FFD700', chakchakUltActive);
 
-    musicInterval = setInterval(() => {
-        const freq = bassNotes[step % bassNotes.length];
-        // Бас
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(80, ctx.currentTime);
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-        musicNodes.push(osc);
-
-        // Редкий варган (каждые 4 удара)
-        if (step % 4 === 0) {
-            const twang = ctx.createOscillator();
-            const twGain = ctx.createGain();
-            twang.connect(twGain);
-            twGain.connect(ctx.destination);
-            twang.type = 'triangle';
-            twang.frequency.setValueAtTime(120 + Math.random() * 30, ctx.currentTime);
-            twang.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.3);
-            twGain.gain.setValueAtTime(0.04, ctx.currentTime);
-            twGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-            twang.start(ctx.currentTime);
-            twang.stop(ctx.currentTime + 0.3);
-            musicNodes.push(twang);
-        }
-
-        // Очень редкий курай (каждые 8 ударов)
-        if (step % 8 === 0) {
-            const kurai = ctx.createOscillator();
-            const kGain = ctx.createGain();
-            const kFilter = ctx.createBiquadFilter();
-            kurai.connect(kFilter);
-            kFilter.connect(kGain);
-            kGain.connect(ctx.destination);
-            kurai.type = 'square';
-            kFilter.type = 'lowpass';
-            kFilter.frequency.setValueAtTime(600, ctx.currentTime);
-            kurai.frequency.setValueAtTime(392, ctx.currentTime); // Соль
-            kGain.gain.setValueAtTime(0.03, ctx.currentTime);
-            kGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-            kurai.start(ctx.currentTime);
-            kurai.stop(ctx.currentTime + 1.5);
-            musicNodes.push(kurai);
-        }
-
-        step++;
-    }, beat * 1000);
-}
-
-function playPlanetMusic() {
-    status('🎵 Планета: пульс + варган');
-    stopAllMusic();
-    const ctx = getCtx();
-    const bpm = 75; // чуть быстрее
-    const beat = 60 / bpm;
-
-    let step = 0;
-    musicInterval = setInterval(() => {
-        // Бас-пульс чаще
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'triangle';
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(100, ctx.currentTime);
-        osc.frequency.setValueAtTime(50, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-        musicNodes.push(osc);
-
-        // Варган чаще (каждые 2 удара)
-        if (step % 2 === 0) {
-            const twang = ctx.createOscillator();
-            const twGain = ctx.createGain();
-            twang.connect(twGain);
-            twGain.connect(ctx.destination);
-            twang.type = 'triangle';
-            const twFreq = 100 + step * 7;
-            twang.frequency.setValueAtTime(twFreq % 80 + 80, ctx.currentTime);
-            twang.frequency.linearRampToValueAtTime(40, ctx.currentTime + 0.4);
-            twGain.gain.setValueAtTime(0.05, ctx.currentTime);
-            twGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-            twang.start(ctx.currentTime);
-            twang.stop(ctx.currentTime + 0.4);
-            musicNodes.push(twang);
-        }
-
-        step++;
-    }, beat * 1000);
-}
-
-        function stopMusic() {
-            stopAllMusic();
-            status('🔇 Музыка остановлена');
-        }
-
-        // ========== АТМОСФЕРА ==========
-        function playStarDing() {
-            // Редкий звёздный «дзынь»
-            playTone(1200 + Math.random() * 800, 0.2, 'sine', 0.04);
-        }
-
-        function playAsteroidPass() {
-            status('Пролёт астероида');
-            const ctx = getCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(30, ctx.currentTime);
-            osc.frequency.linearRampToValueAtTime(15, ctx.currentTime + 1);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.3);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 1);
-        }
-
-        function playWarp() {
-            status('Переход!');
-            const ctx = getCtx();
-            for (let i = 0; i < 5; i++) {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = 'sine';
-                const startFreq = 200 + i * 100;
-                osc.frequency.setValueAtTime(startFreq, ctx.currentTime + i * 0.08);
-                osc.frequency.exponentialRampToValueAtTime(startFreq * 3, ctx.currentTime + i * 0.08 + 0.3);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.3);
-                osc.start(ctx.currentTime + i * 0.08);
-                osc.stop(ctx.currentTime + i * 0.08 + 0.3);
+            if (combo % 5 === 0 && combo > 0) {
+                spawnFloatingText(rocket.x, rocket.y - 50, 'ДӨРЕС!', '#00ff88', 22);
             }
-            playNoise(0.4, 0.1, 3000);
+
+            if (combo >= nextComboEchpochmak && echpochmaks < 7) {
+                echpochmaks++;
+                nextComboEchpochmak += 5;
+                spawnFloatingText(rocket.x - 40, rocket.y, '+🥟', '#ffaa00');
+            }
+
+            if (combo >= nextComboChakchak && chakchaks < 3) {
+                chakchaks++;
+                nextComboChakchak += 15;
+                spawnFloatingText(rocket.x + 40, rocket.y, '+🍯', '#ff8800');
+            }
+
+            rocket.targetFlame = rocket.flameBoost;
+            rocket.shake = 5;
+
+            refreshCurrentExample();
+            spawnNewExample();
+            if (!currentExample) refreshCurrentExample();
         }
 
-        // ========== ИНИЦИАЛИЗАЦИЯ ==========
-        // Разблокируем AudioContext по первому клику (требование браузеров)
-        document.addEventListener('click', () => {
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }, { once: true });
+        function onWrongAnswer(asteroid) {
+            combo = 0;
+            nextComboEchpochmak = 5;
+            nextComboChakchak = 15;
+            lives--;
+            speed = Math.max(baseSpeed, speed - 0.5);
 
-        status('Нажми любую кнопку для теста звуков 🎧');
-        console.log('🚀 Сан-Ракета — звуковой прототип готов');
-        console.log('Жми кнопки, слушай звуки');
+            asteroid.missAnim = 15;
+            spawnParticles(asteroid.x, asteroid.y, '#ff4444', 10);
+            spawnFloatingText(asteroid.x, asteroid.y, 'ХАТА!', '#ff4444');
+            rocket.shake = 8;
+            rocket.targetFlame = rocket.flameNormal / 2;
+
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function handleAnswer(index) {
+            if (state !== STATE.PLAYING) return;
+            if (!currentExample || !currentExample.active) return;
+            if (currentExample.hitAnim > 0 || currentExample.missAnim > 0) return;
+
+            const chosen = answerButtons[index];
+            if (chosen === currentExample.correct) {
+                onCorrectAnswer(currentExample);
+            } else {
+                onWrongAnswer(currentExample);
+            }
+        }
+
+        function fireAtCurrentExample() {
+            if (state !== STATE.PLAYING) return;
+            if (echpochmaks <= 0) return;
+            if (!currentExample || !currentExample.active) return;
+            if (currentExample.hitAnim > 0 || currentExample.missAnim > 0) return;
+
+            echpochmaks--;
+            const target = currentExample;
+            const targetId = target.id;
+            fireEchpochmak(target.x, target.y, targetId);
+        }
+
+        function activateChakchakUlt() {
+            if (state !== STATE.PLAYING) return;
+            if (chakchaks <= 0) return;
+            if (chakchakUltActive) return;
+
+            chakchaks--;
+            chakchakUltActive = true;
+            chakchakUltTimer = CHAKCHAK_DURATION;
+            screenShake = 30;
+            goldenOverlay = 1;
+            rocket.golden = 1;
+
+            spawnGoldenExplosion(rocket.x, rocket.y, 50);
+            spawnFloatingText(canvas.width / 2, canvas.height / 2, 'ЧӘК-ЧӘК!', '#FFD700', 40);
+
+            const toDestroy = asteroids.filter(a => a.active);
+            for (let a of toDestroy) {
+                destroyAsteroid(a, 25, '#FFD700', true);
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+            }
+
+            for (let i = 0; i < 30; i++) {
+                chakchakParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: -Math.random() * 5 - 2,
+                    life: 1,
+                    decay: 0.008,
+                    size: Math.random() * 8 + 3,
+                    color: ['#FFD700', '#FFA500', '#FFF8DC'][Math.floor(Math.random() * 3)]
+                });
+            }
+
+            refreshCurrentExample();
+            spawnNewExample();
+            if (!currentExample) refreshCurrentExample();
+        }
+
+        function cycleSpeedMode() {
+            const modes = Object.values(SPEED_MODES);
+            const currentIndex = modes.indexOf(currentSpeedMode);
+            const nextIndex = (currentIndex + 1) % modes.length;
+            currentSpeedMode = modes[nextIndex];
+            baseSpeed = currentSpeedMode.multiplier;
+            speed = baseSpeed + Math.floor(combo / 3) * 0.2;
+            if (state === STATE.PLAYING) {
+                spawnFloatingText(canvas.width / 2, 80, currentSpeedMode.name, currentSpeedMode.color, 22);
+            }
+        }
+
+        // ========== ИГРОВЫЕ СОСТОЯНИЯ ==========
+        function startGame() {
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            lives = 3;
+            echpochmaks = 3;
+            chakchaks = 0;
+            nextComboEchpochmak = 5;
+            nextComboChakchak = 15;
+            speed = baseSpeed;
+            asteroids = [];
+            projectiles = [];
+            particles = [];
+            floatingTexts = [];
+            chakchakParticles = [];
+            currentExample = null;
+            answerButtons = [];
+            asteroidTimer = 0;
+            chakchakUltActive = false;
+            chakchakUltTimer = 0;
+            screenShake = 0;
+            goldenOverlay = 0;
+            gameOverTimer = 0;
+
+            rocket.x = canvas.width / 2;
+            rocket.y = canvas.height * 0.55;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            rocket.shake = 0;
+            rocket.golden = 0;
+
+            delete canvas._gameOverBtn;
+
+            resizeCanvas();
+            initStars();
+            initClouds();
+            spawnNewExample();
+            if (!currentExample) refreshCurrentExample();
+
+            state = STATE.PLAYING;
+        }
+
+        function gameOver() {
+            state = STATE.GAMEOVER;
+            gameOverTimer = 0;
+            chakchakUltActive = false;
+            rocket.golden = 0;
+            goldenOverlay = 0;
+            spawnParticles(rocket.x, rocket.y, '#ff4444', 40);
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        // ========== КЛИКИ ==========
+        function isInside(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+        }
+
+        function handleClick(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+
+            if (state === STATE.GAMEOVER) {
+                if (gameOverTimer < 30) return;
+                const btn = canvas._gameOverBtn;
+                if (btn && isInside(x, y, btn)) {
+                    restartGame();
+                }
+                return;
+            }
+
+            if (state === STATE.MENU) {
+                for (let btn of getSpeedButtons()) {
+                    if (isInside(x, y, btn)) {
+                        currentSpeedMode = btn.mode;
+                        baseSpeed = currentSpeedMode.multiplier;
+                        return;
+                    }
+                }
+                if (isInside(x, y, getStartButton())) {
+                    startGame();
+                }
+                return;
+            }
+
+            if (state !== STATE.PLAYING) return;
+
+            if (isInside(x, y, getSpeedButton())) {
+                cycleSpeedMode();
+                return;
+            }
+
+            if (currentExample && currentExample.active && answerButtons.length > 0) {
+                for (let i = 0; i < answerButtons.length; i++) {
+                    if (isInside(x, y, getButtonRect(i))) {
+                        handleAnswer(i);
+                        return;
+                    }
+                }
+            }
+
+            if (echpochmaks > 0 && isInside(x, y, getEchpochmakButton())) {
+                fireAtCurrentExample();
+                return;
+            }
+
+            if (chakchaks > 0 && !chakchakUltActive && isInside(x, y, getChakchakButton())) {
+                activateChakchakUlt();
+                return;
+            }
+        }
+
+        canvas.addEventListener('click', (e) => handleClick(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                handleClick(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        // ========== ОБНОВЛЕНИЕ ==========
+        function update() {
+            frameCount++;
+
+            if (state === STATE.GAMEOVER) {
+                gameOverTimer++;
+                rocket.y += 2;
+                rocket.targetFlame = 0;
+                for (let p of particles) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.gravity) p.vy += 0.1;
+                    p.life -= p.decay;
+                }
+                particles = particles.filter(p => p.life > 0);
+                for (let t of floatingTexts) {
+                    t.y += t.vy;
+                    t.life -= t.decay;
+                }
+                floatingTexts = floatingTexts.filter(t => t.life > 0);
+                return;
+            }
+
+            if (state !== STATE.PLAYING) return;
+
+            // Чак-чак ульта
+            if (chakchakUltActive) {
+                chakchakUltTimer--;
+                if (frameCount % 2 === 0) {
+                    chakchakParticles.push({
+                        x: rocket.x + (Math.random() - 0.5) * 60,
+                        y: rocket.y + (Math.random() - 0.5) * 80,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: -Math.random() * 4,
+                        life: 1,
+                        decay: 0.015,
+                        size: Math.random() * 4 + 2,
+                        color: '#FFD700'
+                    });
+                }
+                if (chakchakUltTimer <= 0) {
+                    chakchakUltActive = false;
+                }
+            }
+
+            // Затухание золотого
+            if (!chakchakUltActive) {
+                if (goldenOverlay > 0) {
+                    goldenOverlay += (0 - goldenOverlay) * 0.06;
+                    if (goldenOverlay < 0.005) goldenOverlay = 0;
+                }
+                if (rocket.golden > 0) {
+                    rocket.golden += (0 - rocket.golden) * 0.06;
+                    if (rocket.golden < 0.005) rocket.golden = 0;
+                }
+            } else {
+                goldenOverlay += (1 - goldenOverlay) * 0.1;
+                rocket.golden += (1 - rocket.golden) * 0.1;
+            }
+
+            // Шейк
+            if (screenShake > 0) screenShake *= 0.9;
+            if (screenShake < 0.1) screenShake = 0;
+
+            // Чак-чак частицы
+            for (let p of chakchakParticles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+            }
+            chakchakParticles = chakchakParticles.filter(p => p.life > 0);
+
+            // Звёзды
+            for (let s of stars) {
+                s.y += s.speed * speed;
+                s.twinkle += s.twinkleSpeed;
+                if (s.y > canvas.height + 10) { s.y = -10; s.x = Math.random() * canvas.width; }
+            }
+
+            // Облака
+            for (let c of clouds) {
+                c.y += c.speed * speed * 0.3;
+                if (c.y > canvas.height + 50) { c.y = -50; c.x = Math.random() * canvas.width; }
+            }
+
+            // Ракета
+            rocket.currentFlame += (rocket.targetFlame - rocket.currentFlame) * 0.15;
+            if (rocket.shake > 0) rocket.shake *= 0.8;
+            if (rocket.shake < 0.1) rocket.shake = 0;
+            rocket.x = canvas.width / 2 + (Math.random() - 0.5) * rocket.shake;
+            if (rocket.targetFlame > rocket.flameNormal) {
+                rocket.targetFlame += (rocket.flameNormal - rocket.targetFlame) * 0.08;
+            }
+
+            // Спавн астероидов
+            asteroidTimer++;
+            if (asteroidTimer >= getAsteroidSpawnInterval()) {
+                asteroidTimer = 0;
+                spawnNewExample();
+                if (!currentExample) refreshCurrentExample();
+            }
+
+            // Столкновения
+            const collisions = [];
+            const toRemove = [];
+
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const a = asteroids[i];
+                if (!a.active) {
+                    if (a.hitAnim > 0) a.hitAnim--;
+                    if (a.missAnim > 0) a.missAnim--;
+                    if (a.hitAnim <= 0 && a.missAnim <= 0) toRemove.push(i);
+                    continue;
+                }
+
+                a.y += a.speed * speed;
+                if (a.y > canvas.height + 80) {
+                    toRemove.push(i);
+                    if (!chakchakUltActive) {
+                        combo = 0;
+                        nextComboEchpochmak = 5;
+                        nextComboChakchak = 15;
+                    }
+                    continue;
+                }
+
+                const dx = a.x - rocket.x;
+                const dy = a.y - rocket.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < a.radius + rocket.width / 2 + 5 && a.hitAnim === 0 && a.missAnim === 0) {
+                    collisions.push({ index: i, asteroid: a });
+                }
+            }
+
+            for (let idx of toRemove.sort((a, b) => b - a)) {
+                if (asteroids[idx] === currentExample) currentExample = null;
+                asteroids.splice(idx, 1);
+            }
+
+            for (let col of collisions) {
+                const a = col.asteroid;
+                if (!a.active) continue;
+
+                if (chakchakUltActive) {
+                    destroyAsteroid(a, 25, '#FFD700', true);
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                } else {
+                    combo = 0;
+                    nextComboEchpochmak = 5;
+                    nextComboChakchak = 15;
+                    lives--;
+                    speed = Math.max(baseSpeed, speed - 0.5);
+                    a.active = false;
+                    spawnParticles(a.x, a.y, '#ff4444', 20);
+                    spawnFloatingText(rocket.x, rocket.y, 'БӘРЕЛДЕК!', '#ff4444');
+                    rocket.shake = 10;
+
+                    if (currentExample === a) currentExample = null;
+                    const idx = asteroids.indexOf(a);
+                    if (idx > -1) asteroids.splice(idx, 1);
+
+                    if (lives <= 0) {
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+
+            refreshCurrentExample();
+            if (!currentExample) {
+                spawnNewExample();
+                refreshCurrentExample();
+            }
+
+            // Снаряды
+            for (let p of projectiles) {
+                p.progress += p.speed;
+                if (p.progress > 1) p.progress = 1;
+                if (frameCount % 3 === 0) {
+                    const cx = p.x + (p.targetX - p.x) * p.progress;
+                    const cy = p.y + (p.targetY - p.y) * p.progress;
+                    p.trail.push({ x: cx, y: cy, life: 0.5 });
+                }
+            }
+
+            const hitProjectiles = [];
+            for (let p of projectiles) {
+                if (p.progress >= 1) {
+                    const target = asteroids.find(a => a.id === p.targetId && a.active);
+                    if (target) {
+                        hitProjectiles.push({ projectile: p, asteroid: target });
+                    }
+                }
+            }
+
+            for (let hp of hitProjectiles) {
+                if (!hp.asteroid.active) continue;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                score += 15;
+                spawnParticles(hp.asteroid.x, hp.asteroid.y, '#ffaa00', 25);
+                spawnFloatingText(hp.asteroid.x, hp.asteroid.y, '+15 🥟', '#ffaa00');
+                hp.asteroid.active = false;
+                hp.asteroid.hitAnim = 15;
+
+                if (currentExample === hp.asteroid) currentExample = null;
+                const idx = asteroids.indexOf(hp.asteroid);
+                if (idx > -1) asteroids.splice(idx, 1);
+            }
+
+            projectiles = projectiles.filter(p => p.progress < 1);
+            for (let p of projectiles) {
+                p.trail = p.trail.filter(t => { t.life -= 0.05; return t.life > 0; });
+            }
+
+            refreshCurrentExample();
+            if (!currentExample) {
+                spawnNewExample();
+                refreshCurrentExample();
+            }
+
+            // Частицы
+            for (let p of particles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.gravity) p.vy += 0.1;
+                p.life -= p.decay;
+            }
+            particles = particles.filter(p => p.life > 0);
+
+            // Текст
+            for (let t of floatingTexts) {
+                t.y += t.vy;
+                t.life -= t.decay;
+            }
+            floatingTexts = floatingTexts.filter(t => t.life > 0);
+        }
+
+        // ========== ОТРИСОВКА ==========
+        function draw() {
+            ctx.save();
+            let shakeX = 0, shakeY = 0;
+            if (screenShake > 0) {
+                shakeX = (Math.random() - 0.5) * screenShake;
+                shakeY = (Math.random() - 0.5) * screenShake;
+                ctx.translate(shakeX, shakeY);
+            }
+
+            // Фон
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            if (chakchakUltActive || goldenOverlay > 0.5) {
+                grad.addColorStop(0, '#1a1a00');
+                grad.addColorStop(0.5, '#2a2a0a');
+                grad.addColorStop(1, '#1a1a3e');
+            } else {
+                grad.addColorStop(0, '#05051a');
+                grad.addColorStop(0.5, '#0a0a2e');
+                grad.addColorStop(1, '#1a1a3e');
+            }
+            ctx.fillStyle = grad;
+            ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40);
+
+            if (goldenOverlay > 0.01) {
+                ctx.fillStyle = `rgba(255, 200, 0, ${goldenOverlay * 0.15})`;
+                ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40);
+            }
+
+            // Звёзды
+            for (let s of stars) {
+                let alpha = 0.5 + Math.sin(s.twinkle) * 0.4 + 0.1;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Чак-чак частицы
+            for (let p of chakchakParticles) {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Земля
+            const earthY = canvas.height + 40;
+            const earthGrad = ctx.createRadialGradient(canvas.width / 2, earthY, 10, canvas.width / 2, earthY, canvas.width * 1.2);
+            earthGrad.addColorStop(0, '#2d5a1e');
+            earthGrad.addColorStop(0.7, '#1a3a10');
+            earthGrad.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = earthGrad;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, earthY, canvas.width * 1.2, 0, Math.PI);
+            ctx.fill();
+
+            // Облака
+            for (let c of clouds) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.beginPath(); ctx.ellipse(c.x, c.y, c.width / 2, 12, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(c.x - c.width * 0.25, c.y - 8, c.width * 0.35, 10, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(c.x + c.width * 0.25, c.y - 6, c.width * 0.3, 9, 0, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Астероиды
+            for (let a of asteroids) {
+                if (!a.active && a.hitAnim <= 0 && a.missAnim <= 0) continue;
+                let alpha = 1, scale = 1;
+                if (a.hitAnim > 0) { alpha = a.hitAnim / 15; scale = 1 + (15 - a.hitAnim) * 0.08; }
+                if (a.missAnim > 0) { alpha = a.missAnim / 15; }
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(a.x, a.y);
+                ctx.scale(scale, scale);
+
+                ctx.fillStyle = chakchakUltActive ? '#6a6a40' : '#5a5a6e';
+                ctx.strokeStyle = chakchakUltActive ? '#aaa850' : '#7a7a8e';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const r = a.radius;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const rr = r + Math.sin(i * 1.7 + frameCount * 0.05) * 4;
+                    const sx = Math.cos(angle) * rr, sy = Math.sin(angle) * rr;
+                    if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+                }
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+
+                ctx.fillStyle = '#4a4a5e';
+                ctx.beginPath(); ctx.arc(-8, -5, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(5, 8, 4, 0, Math.PI * 2); ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(a.text, 0, 0);
+                ctx.restore();
+            }
+
+            // Снаряды
+            for (let p of projectiles) {
+                const cx = p.x + (p.targetX - p.x) * p.progress;
+                const cy = p.y + (p.targetY - p.y) * p.progress;
+                for (let t of p.trail) {
+                    ctx.fillStyle = `rgba(255, 180, 50, ${t.life})`;
+                    ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(Math.atan2(p.targetY - p.y, p.targetX - p.x) + Math.PI / 2);
+                ctx.fillStyle = chakchakUltActive ? '#FFD700' : '#ffaa00';
+                ctx.strokeStyle = chakchakUltActive ? '#DAA520' : '#cc8800';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(0, -p.size);
+                ctx.lineTo(-p.size * 0.7, p.size * 0.6);
+                ctx.lineTo(p.size * 0.7, p.size * 0.6);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.strokeStyle = '#885500'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(-3, -2); ctx.lineTo(0, p.size * 0.3); ctx.lineTo(3, -2); ctx.stroke();
+                ctx.restore();
+            }
+
+            // Частицы
+            for (let p of particles) {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Ракета
+            if (state !== STATE.GAMEOVER || rocket.y < canvas.height + 100) drawRocket();
+
+            // Текст
+            for (let t of floatingTexts) {
+                ctx.globalAlpha = Math.max(0, t.life);
+                ctx.fillStyle = t.color;
+                ctx.font = `bold ${t.size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(t.text, t.x, t.y);
+            }
+            ctx.globalAlpha = 1;
+
+            ctx.restore();
+            drawHUD();
+
+            if (chakchakUltActive) {
+                const barW = canvas.width * 0.6, barH = 8;
+                const barX = canvas.width / 2 - barW / 2, barY = 48;
+                const progress = chakchakUltTimer / CHAKCHAK_DURATION;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+                const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+                barGrad.addColorStop(0, '#FFD700'); barGrad.addColorStop(1, '#FF8C00');
+                ctx.fillStyle = barGrad;
+                ctx.fillRect(barX, barY, barW * progress, barH);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('ЧӘК-ЧӘК!', canvas.width / 2, barY - 5);
+            }
+
+            if (state === STATE.MENU) drawMenu();
+            if (state === STATE.GAMEOVER) drawGameOver();
+        }
+
+        function drawRocket() {
+            const rx = rocket.x, ry = rocket.y;
+            ctx.save();
+            ctx.translate(rx, ry);
+
+            const fh = rocket.currentFlame + Math.sin(frameCount * 0.3) * 5;
+            if (fh > 2) {
+                const grad = ctx.createLinearGradient(0, rocket.height / 2, 0, rocket.height / 2 + fh);
+                if (chakchakUltActive || rocket.golden > 0.5) {
+                    grad.addColorStop(0, '#FFD700'); grad.addColorStop(0.3, '#FFA500');
+                    grad.addColorStop(0.6, '#FFD700'); grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+                } else {
+                    grad.addColorStop(0, '#ff4400'); grad.addColorStop(0.3, '#ff6600');
+                    grad.addColorStop(0.6, '#ffaa00'); grad.addColorStop(1, 'rgba(255, 200, 50, 0)');
+                }
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                const fw = rocket.width * 0.4, wobble = Math.sin(frameCount * 0.5) * 3;
+                ctx.moveTo(-fw, rocket.height / 2);
+                ctx.quadraticCurveTo(-fw + wobble, rocket.height / 2 + fh * 0.6, wobble * 0.5, rocket.height / 2 + fh);
+                ctx.quadraticCurveTo(fw + wobble * 0.5, rocket.height / 2 + fh * 0.6, fw, rocket.height / 2);
+                ctx.closePath(); ctx.fill();
+            }
+
+            let c1 = '#c0c0c0', c2 = '#ffffff', c3 = '#e0e0e0', c4 = '#909090';
+            if (rocket.golden > 0.01) {
+                const g = rocket.golden;
+                c1 = lerpColor('#c0c0c0', '#FFD700', g);
+                c2 = lerpColor('#ffffff', '#FFF8DC', g);
+                c3 = lerpColor('#e0e0e0', '#FFC107', g);
+                c4 = lerpColor('#909090', '#DAA520', g);
+            }
+            const bodyGrad = ctx.createLinearGradient(-rocket.width / 2, 0, rocket.width / 2, 0);
+            bodyGrad.addColorStop(0, c1); bodyGrad.addColorStop(0.3, c2);
+            bodyGrad.addColorStop(0.7, c3); bodyGrad.addColorStop(1, c4);
+            ctx.fillStyle = bodyGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(rocket.width / 2, -rocket.height / 2, rocket.width / 2, rocket.height / 2, rocket.width * 0.3, rocket.height / 2);
+            ctx.lineTo(-rocket.width * 0.3, rocket.height / 2);
+            ctx.bezierCurveTo(-rocket.width / 2, rocket.height / 2, -rocket.width / 2, -rocket.height / 2, 0, -rocket.height / 2);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#707070'; ctx.lineWidth = 1.5; ctx.stroke();
+
+            ctx.fillStyle = '#4488cc'; ctx.strokeStyle = '#a0a0a0'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, -5, rocket.width * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath(); ctx.arc(-3, -8, 3, 0, Math.PI * 2); ctx.fill();
+
+            ctx.fillStyle = '#a0a0a0'; ctx.strokeStyle = '#606060'; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(-rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(-rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(rocket.width * 0.3, rocket.height * 0.25);
+            ctx.lineTo(rocket.width * 0.8, rocket.height * 0.45);
+            ctx.lineTo(rocket.width * 0.35, rocket.height * 0.45);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#dd3333';
+            ctx.beginPath();
+            ctx.moveTo(0, -rocket.height / 2);
+            ctx.bezierCurveTo(rocket.width * 0.15, -rocket.height / 2 + 8, rocket.width * 0.35, -rocket.height * 0.25, rocket.width * 0.3, -rocket.height * 0.15);
+            ctx.lineTo(-rocket.width * 0.3, -rocket.height * 0.15);
+            ctx.bezierCurveTo(-rocket.width * 0.35, -rocket.height * 0.25, -rocket.width * 0.15, -rocket.height / 2 + 8, 0, -rocket.height / 2);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#aa2222'; ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function lerpColor(c1, c2, t) {
+            const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
+            const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
+            const r = Math.round(r1 + (r2 - r1) * t), g = Math.round(g1 + (g2 - g1) * t), b = Math.round(b1 + (b2 - b1) * t);
+            return '#' + [r,g,b].map(c => c.toString(16).padStart(2,'0')).join('');
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+        }
+
+        function drawHUD() {
+            const topHUD = 50;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, topHUD);
+
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left';
+            ctx.fillText(`Счёт: ${score}`, 15, 33);
+
+            if (combo >= 3) {
+                ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+                ctx.fillText(`x${combo}`, canvas.width / 2, 33);
+            }
+
+            ctx.textAlign = 'right'; ctx.font = '20px Arial';
+            let hearts = '';
+            for (let i = 0; i < 3; i++) hearts += i < lives ? '❤️' : '🖤';
+            ctx.fillText(hearts, canvas.width - 15, 33);
+
+            if (state === STATE.PLAYING) {
+                const sb = getSpeedButton();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.strokeStyle = currentSpeedMode.color; ctx.lineWidth = 2;
+                roundRect(ctx, sb.x, sb.y, sb.w, sb.h, 8); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = currentSpeedMode.color;
+                ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(currentSpeedMode.name, sb.x + sb.w / 2, sb.y + sb.h / 2);
+            }
+
+            if (state === STATE.PLAYING && currentExample && currentExample.active) {
+                for (let i = 0; i < answerButtons.length; i++) {
+                    const btn = getButtonRect(i);
+                    const grad = ctx.createLinearGradient(btn.x, btn.y, btn.x, btn.y + btn.h);
+                    grad.addColorStop(0, chakchakUltActive ? '#5a5a20' : '#3a3a5a');
+                    grad.addColorStop(1, chakchakUltActive ? '#4a4a10' : '#2a2a4a');
+                    ctx.fillStyle = grad;
+                    ctx.strokeStyle = chakchakUltActive ? 'rgba(255, 215, 0, 0.4)' : 'rgba(255, 255, 255, 0.2)';
+                    ctx.lineWidth = 2;
+                    roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 12); ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(answerButtons[i], btn.x + btn.w / 2, btn.y + btn.h / 2);
+                }
+            }
+
+            if (echpochmaks > 0 && state === STATE.PLAYING) {
+                const eb = getEchpochmakButton();
+                ctx.fillStyle = 'rgba(255, 150, 30, 0.4)';
+                ctx.strokeStyle = 'rgba(255, 180, 60, 0.6)'; ctx.lineWidth = 2;
+                roundRect(ctx, eb.x, eb.y, eb.w, eb.h, 10); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '16px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`🥟×${echpochmaks}`, eb.x + eb.w / 2, eb.y + eb.h / 2);
+            }
+
+            if (chakchaks > 0 && !chakchakUltActive && state === STATE.PLAYING) {
+                const cb = getChakchakButton();
+                const pulse = Math.sin(frameCount * 0.08) * 0.3 + 0.7;
+                ctx.fillStyle = `rgba(255, 140, 0, ${0.4 + pulse * 0.3})`;
+                ctx.strokeStyle = `rgba(255, 215, 0, ${0.5 + pulse * 0.4})`; ctx.lineWidth = 3;
+                roundRect(ctx, cb.x, cb.y, cb.w, cb.h, 10); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#fff'; ctx.font = '16px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`🍯×${chakchaks}`, cb.x + cb.w / 2, cb.y + cb.h / 2);
+                ctx.strokeStyle = `rgba(255, 215, 0, ${pulse * 0.5})`; ctx.lineWidth = 4;
+                roundRect(ctx, cb.x - 2, cb.y - 2, cb.w + 4, cb.h + 4, 12); ctx.stroke();
+            }
+        }
+
+        function drawMenu() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 36px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('САН-РАКЕТА', canvas.width / 2, canvas.height * 0.18);
+            ctx.fillStyle = '#ffaa00'; ctx.font = '18px Arial';
+            ctx.fillText('Тапкырлау', canvas.width / 2, canvas.height * 0.18 + 35);
+
+            ctx.fillStyle = '#ccc'; ctx.font = '16px Arial';
+            ctx.fillText('Тизлек сайла:', canvas.width / 2, canvas.height * 0.40);
+
+            for (let btn of getSpeedButtons()) {
+                const selected = btn.mode === currentSpeedMode;
+                ctx.fillStyle = selected ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.4)';
+                ctx.strokeStyle = btn.mode.color; ctx.lineWidth = selected ? 3 : 1.5;
+                roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 10); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = btn.mode.color; ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(btn.mode.name, btn.x + btn.w / 2, btn.y + btn.h / 2);
+            }
+
+            ctx.fillStyle = '#aaa'; ctx.font = '12px Arial';
+            ctx.fillText('🥟 Эчпочмак — серия из 5', canvas.width / 2, canvas.height * 0.72);
+            ctx.fillText('🍯 Чак-чак — серия из 15 (ульта!)', canvas.width / 2, canvas.height * 0.76);
+            ctx.fillText('⚡ В ульте — неуязвимость + золото', canvas.width / 2, canvas.height * 0.80);
+
+            const sb = getStartButton();
+            const pulse = Math.sin(frameCount * 0.05) * 0.15 + 0.85;
+            ctx.fillStyle = `rgba(255, 140, 0, ${pulse})`;
+            ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+            roundRect(ctx, sb.x, sb.y, sb.w, sb.h, 15); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('СТАРТ', canvas.width / 2, sb.y + sb.h / 2);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ff4444'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('УЕН БЕТТЕ!', canvas.width / 2, canvas.height * 0.28);
+            ctx.fillStyle = '#fff'; ctx.font = '20px Arial';
+            ctx.fillText(`Счёт: ${score}`, canvas.width / 2, canvas.height * 0.40);
+            ctx.fillText(`Лучшая серия: x${maxCombo}`, canvas.width / 2, canvas.height * 0.46);
+
+            const btnW = Math.min(200, canvas.width * 0.55);
+            const btnH = 56;
+            const btnX = canvas.width / 2 - btnW / 2, btnY = canvas.height * 0.58;
+            ctx.fillStyle = '#ff6600'; ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+            roundRect(ctx, btnX, btnY, btnW, btnH, 15); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('ЯҢАДАН', canvas.width / 2, btnY + btnH / 2);
+
+            canvas._gameOverBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+        }
+
+        // ========== ЦИКЛ ==========
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function init() {
+            rocket.x = canvas.width / 2;
+            rocket.y = canvas.height * 0.55;
+            rocket.currentFlame = rocket.flameNormal;
+            rocket.targetFlame = rocket.flameNormal;
+            baseSpeed = currentSpeedMode.multiplier;
+            initStars();
+            initClouds();
+            state = STATE.MENU;
+        }
+
+        init();
+        gameLoop();
+        console.log('🚀 Сан-Ракета v3.1 — Pixel Perfect!');
     </script>
 </body>
 </html>
